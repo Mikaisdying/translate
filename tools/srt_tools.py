@@ -5,7 +5,7 @@ Chỉ dùng thư viện chuẩn của Python (3.8+). Chạy từ thư mục gố
 
 Dữ liệu nằm trong workspace/ (không đưa lên git), tự tạo khi chạy nếu chưa có:
   workspace/raw/  workspace/cleaned/  workspace/trans/  workspace/work/ (file tạm)
-  workspace/glossary.md (chép từ glossary.template.md nếu chưa có)
+  workspace/glossary.md (chép từ .agent/skills/build-glossary/assets/glossary.template.md nếu chưa có)
 
 Lệnh:
   info     FILE                         Thống kê số block, thời lượng, lỗi định dạng
@@ -43,7 +43,7 @@ from pathlib import Path
 
 WS = Path("workspace")
 RAW, CLEANED, TRANS, WORK = WS / "raw", WS / "cleaned", WS / "trans", WS / "work"
-GLOSSARY, GLOSSARY_TEMPLATE = WS / "glossary.md", Path("glossary.template.md")
+GLOSSARY, GLOSSARY_TEMPLATE = WS / "glossary.md", Path(".agent/skills/build-glossary/assets/glossary.template.md")
 
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):

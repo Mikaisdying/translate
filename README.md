@@ -7,7 +7,6 @@ Bộ mẫu để copy vào mỗi dự án phụ đề mới. Cần Python 3.8+ (
 ```
 subtitle-kit/
 ├── AGENTS.md                 # luật chung của dự án
-├── glossary.template.md      # mẫu glossary trống, tool tự chép thành workspace/glossary.md
 ├── workspace/                # dữ liệu, chỉ nằm trên máy (đã ignore), tool tự tạo
 │   ├── glossary.md           # glossary của dự án (tên, xưng hô, thuật ngữ)
 │   ├── raw/                  # bỏ file .srt của FunASR vào đây
@@ -22,6 +21,7 @@ subtitle-kit/
     │   ├── clean-funasr/
     │   │   └── references/   # audit.md (subagent soát bản clean)
     │   ├── build-glossary/
+    │   │   ├── assets/       # glossary.template.md: mẫu trống, tool tự chép thành workspace/glossary.md
     │   │   └── references/   # extract.md (subagent trích ứng viên)
     │   ├── review-subtitle/
     │   │   └── references/   # find-errors.md, cross-check.md (cho subagent)

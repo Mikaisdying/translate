@@ -51,7 +51,7 @@ Chỉ một hai file ngắn, hoặc môi trường không có subagent: tự đ�
 - Dòng ❓ đã có từ trước: chỉ cập nhật khi có bằng chứng mới rõ ràng.
 - Không thêm trùng: kiểm tra cả các cách viết khác của cùng một tên.
 - Ưu tiên chất lượng hơn số lượng: bỏ qua tên chỉ xuất hiện một lần không quan trọng và từ thông dụng ai cũng dịch đúng.
-- Nếu `workspace/glossary.md` chưa tồn tại, chép từ `glossary.template.md` (mọi lệnh `srt_tools.py` chạy từ gốc dự án cũng tự làm việc này).
+- Nếu `workspace/glossary.md` chưa tồn tại, chép từ `assets/glossary.template.md` của skill này (mọi lệnh `srt_tools.py` chạy từ gốc dự án cũng tự làm việc này).
 
 ## Báo cáo khi xong
 

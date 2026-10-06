@@ -3,6 +3,7 @@
 <!--
 File này dùng chung cho cả clean và dịch. Để trống được; điền dần theo từng dự án.
 Có thể nhờ agent điền nháp bằng skill build-glossary (/glossary), sau đó bạn duyệt lại.
+Đây là file mẫu; bản dùng thật là workspace/glossary.md (tool tự chép từ mẫu này khi chưa có).
 
 Trạng thái: ✅ đã duyệt (agent phải tuân theo) | ❓ đề xuất (agent tham khảo, chưa chắc)
 Ô để trống = chưa quyết định, agent tự chọn nhưng phải nhất quán trong cả file.
