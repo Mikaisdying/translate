@@ -9,10 +9,10 @@
 
 ## Forms of address and names
 
-- Follow `glossary.md` (sections 2 and 3).
-- Chinese/Vietnamese kinship and rank terms (师父, 哥, 姐, anh, chị...): translate by function, not literally. Use the name, a title (Master, Your Majesty, Sir), or nothing, whichever sounds natural. Decide once per relationship and record it in `notes.md`.
+- Follow `workspace/glossary.md` (sections 2 and 3).
+- Chinese/Vietnamese kinship and rank terms (师父, 哥, 姐, anh, chị...): translate by function, not literally. Use the name, a title (Master, Your Majesty, Sir), or nothing, whichever sounds natural. Decide once per relationship and record it in `notes.<mã>.md`.
 - Chinese names: pinyin without tone marks, family name first (Li Wei), unless the glossary says otherwise. Keep the same spelling throughout.
-- Vietnamese names: keep with or without diacritics according to the glossary; default is without diacritics for an English audience. Record the choice in `notes.md`.
+- Vietnamese names: keep with or without diacritics according to the glossary; default is without diacritics for an English audience. Record the choice in `notes.<mã>.md`.
 
 ## Idioms and culture
 
@@ -23,12 +23,12 @@
 ## Technical terms, software, shortcuts
 
 - Software and brand names stay as the official spelling (Photoshop, Premiere Pro, Blender, Excel...). Never translate or transliterate them.
-- Use the official English interface names for menus, tools, panels and options (Layer, Brush Tool, Filter > Blur > Gaussian Blur). When the source uses another interface language (图层, 画笔工具, 滤镜 > 模糊), translate to the matching English interface name. If unsure of the exact name, record it in `notes.md` and flag it in the report.
+- Use the official English interface names for menus, tools, panels and options (Layer, Brush Tool, Filter > Blur > Gaussian Blur). When the source uses another interface language (图层, 画笔工具, 滤镜 > 模糊), translate to the matching English interface name. If unsure of the exact name, record it in `notes.<mã>.md` and flag it in the report.
 - Menu paths use " > " between items.
 - Keyboard shortcuts: capitalize key names (Ctrl, Shift, Alt, Cmd, Option, Enter, Tab, Esc, Space), capital letters for letter keys, joined with " + ". E.g. Ctrl + R, Ctrl + Shift + S, Cmd + Option + I. Never "Ctrl plus R" or "control R".
 - Technical jargon: use the term working professionals actually say (layer, mask, render, keyframe).
 - No parenthetical glosses in the subtitle.
-- `glossary.md` overrides this section.
+- `workspace/glossary.md` overrides this section.
 
 ## Presentation
 

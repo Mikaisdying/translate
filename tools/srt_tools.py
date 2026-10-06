@@ -1,30 +1,49 @@
 #!/usr/bin/env python3
 """
 srt_tools.py - Công cụ phụ trợ cho pipeline phụ đề raw -> cleaned -> trans.
-Chỉ dùng thư viện chuẩn của Python (3.8+).
+Chỉ dùng thư viện chuẩn của Python (3.8+). Chạy từ thư mục gốc dự án.
+
+Dữ liệu nằm trong workspace/ (không đưa lên git), tự tạo khi chạy nếu chưa có:
+  workspace/raw/  workspace/cleaned/  workspace/trans/  workspace/work/ (file tạm)
+  workspace/glossary.md (chép từ glossary.template.md nếu chưa có)
 
 Lệnh:
   info     FILE                         Thống kê số block, thời lượng, lỗi định dạng
   text     FILE [--from N] [--to M]     In gọn "ID | text" (đọc nhanh, ít token)
-  split    FILE [--size 100] [--out DIR] Chia file dài thành nhiều phần
-  merge    DIR OUTFILE                  Gộp các phần lại thành một file
-  diff     SRC DST [--limit 50]         Liệt kê các block có nội dung thay đổi
+  split    FILE [--size 100] [--out DIR] Chia file dài thành nhiều file SRT (không cần cho clean/dịch)
+  merge    SRC TEXT OUT [--cleanup]     Ghép chữ dạng "ID | chữ" (nhiều dòng nối bằng " / ") vào ID, timestamp của SRC;
+                                        TEXT là một file hoặc thư mục part_*.txt (--cleanup: xóa thư mục sau khi ghép);
+                                        dòng "ID | =" nghĩa là giữ nguyên chữ của block đó trong SRC
+  diff     SRC DST [--limit 50] [--loose]         Liệt kê các block có nội dung thay đổi
   validate SRC DST [--target vi|en]     Kiểm tra cấu trúc DST so với SRC
   pair     SRC DST [--from N] [--to M]  In song song "ID | gốc | dịch" để đối chiếu (dừng nếu lệch số block)
-  check-glossary SRC DST --target vi|en [--glossary glossary.md]
+  check-glossary SRC DST --target vi|en [--glossary workspace/glossary.md]
                                         Báo block có thuật ngữ ✅ trong glossary mà bản dịch không dùng
+  check-asr FILE [FILE ...] [--glossary workspace/glossary.md]
+                                        Báo chỗ còn sót lỗi ASR ✅ (mục 6 glossary) trong file đã clean
   find     PATTERN FILE [FILE ...] [--regex]
                                         Tìm chuỗi trong phần chữ của nhiều file SRT (không phân biệt hoa thường)
+  archive  PATH [PATH ...] [--copy]     Cất file/thư mục vào workspace/work/<tên>/backup/ kèm thời gian
+  parts    SRC DIR [--size 100]         part_*.txt nào trong DIR đã xong/dở/chưa làm, và lệnh đọc phần tiếp theo
+  status                                Bảng tiến độ: bài nào đã clean, dịch, validate, review
 
 validate trả về mã thoát 1 nếu có LỖI (sai số block, ID, timestamp, block rỗng).
 CẢNH BÁO (sót chữ gốc, ký hiệu Markdown...) không làm hỏng lệnh nhưng cần xem lại.
-check-glossary chỉ cảnh báo, mã thoát 0 trừ khi không đọc được file hoặc hai file lệch số block.
+check-glossary và check-asr chỉ cảnh báo, mã thoát 0 trừ khi không đọc được file
+hoặc hai file lệch số block.
 """
 import argparse
 import glob
+import os
 import re
+import shutil
 import sys
+import time
 from pathlib import Path
+
+WS = Path("workspace")
+RAW, CLEANED, TRANS, WORK = WS / "raw", WS / "cleaned", WS / "trans", WS / "work"
+GLOSSARY, GLOSSARY_TEMPLATE = WS / "glossary.md", Path("glossary.template.md")
 
 for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
@@ -36,10 +55,17 @@ TIMING_RE = re.compile(
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 VI_ONLY_RE = re.compile(r"[ăâđêôơưĂÂĐÊÔƠƯạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]")
 MARKDOWN_RE = re.compile(r"(```|\*\*|^#{1,6}\s|^>\s|translated by|bản dịch bởi)", re.I | re.M)
+_MOD = r"(?:ctrl|control|shift|alt|cmd|command|option|win)"
+_KEY = _MOD[:-1] + r"|tab|enter|esc|space|f\d{1,2}|[a-z0-9])(?![\w])"
+# "Ctrl cộng R", "Shift và A", "Ctrl加R"; không bắt "giữ Shift và nhấp đúp"
 BAD_SHORTCUT_RE = re.compile(
-    r"(?<![a-z])(?:ctrl|control|shift|alt|cmd|command|option|win)\s*(?:(?:cộng|plus|và)(?!\w)|加)",
+    rf"(?<![a-z]){_MOD}\s*(?:(?:cộng|plus|và)\s+(?={_KEY})|加)",
     re.I,
 )
+# Chữ Latin (kể cả có dấu tiếng Việt): thuật ngữ bắt đầu/kết thúc bằng các chữ này
+# phải khớp trọn từ, để "art" không khớp "start". Chữ Hán không có ranh giới từ.
+LATIN = r"A-Za-z0-9À-ɏḀ-ỿ"
+LATIN_RE = re.compile(f"[{LATIN}]")
 
 
 class Block:
@@ -53,7 +79,10 @@ class Block:
 
 
 def read_srt(path):
-    raw = Path(path).read_bytes()
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as e:
+        sys.exit(f"[LỖI] Không đọc được {path}: {e.strerror or e}")
     try:
         content = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -88,6 +117,34 @@ def write_srt(path, blocks):
 def timing_end(t):
     m = TIMING_RE.match(t)
     return m.group(2) if m else "?"
+
+
+def expand_files(patterns):
+    """Mở rộng *.srt (PowerShell/cmd không tự làm). Báo nếu mẫu không khớp file nào."""
+    files = []
+    for f in patterns:
+        if any(c in f for c in "*?["):
+            found = sorted(glob.glob(f))
+            if not found:
+                print(f"[CẢNH BÁO] Không có file nào khớp {f!r}", file=sys.stderr)
+            files.extend(found)
+        else:
+            files.append(f)
+    return files
+
+
+def term_regex(options):
+    """Regex khớp một trong các cách viết, không phân biệt hoa thường.
+    Đầu/cuối là chữ Latin thì đòi ranh giới từ; chữ Hán thì khớp chuỗi con."""
+    parts = []
+    for o in sorted(options, key=len, reverse=True):
+        p = re.escape(o)
+        if LATIN_RE.match(o[0]):
+            p = f"(?<![{LATIN}])" + p
+        if LATIN_RE.match(o[-1]):
+            p = p + f"(?![{LATIN}])"
+        parts.append(p)
+    return re.compile("|".join(parts), re.I)
 
 
 # ---------------- lệnh ----------------
@@ -127,7 +184,7 @@ def cmd_split(a):
             print(f"[LỖI] {e}")
         print("Sửa lỗi định dạng trước khi chia.")
         return 1
-    out = Path(a.out) if a.out else Path(".work") / Path(a.file).stem
+    out = Path(a.out) if a.out else WORK / Path(a.file).stem
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("part_*.srt"):
         old.unlink()
@@ -141,31 +198,97 @@ def cmd_split(a):
     return 0
 
 
+LOOSE_STRIP_RE = re.compile(r"[\s\W_]+")
+
+
+def loose_key(lines):
+    """Chữ của block sau khi bỏ dấu câu, khoảng trắng, xuống dòng, hoa thường."""
+    return LOOSE_STRIP_RE.sub("", "".join(lines)).lower()
+
+
+KEEP_MARK = "="  # dòng "ID | =" trong file chữ: giữ nguyên block đó
+TEXT_LINE_RE = re.compile(r"^\s*(\d+)\s*\|\s?(.*)$")
+
+
+def parse_text_file(path):
+    """Đọc file "ID | chữ". Trả về (dict ID -> chữ, danh sách lỗi)."""
+    try:
+        lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
+    except (OSError, UnicodeDecodeError) as e:
+        return {}, [f"{Path(path).name}: không đọc được ({e})"]
+    texts, problems = {}, []
+    for n, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        m = TEXT_LINE_RE.match(line)
+        if not m:
+            problems.append(f"{Path(path).name} dòng {n}: không đúng dạng 'ID | chữ': {line[:60]!r}")
+            continue
+        idx, text = m.group(1), m.group(2).strip()
+        if idx in texts:
+            problems.append(f"{Path(path).name}: ID {idx} xuất hiện nhiều lần")
+        if not text:
+            problems.append(f"{Path(path).name}: ID {idx} chữ rỗng")
+        texts[idx] = text
+    return texts, problems
+
+
 def cmd_merge(a):
-    parts = sorted(Path(a.dir).glob("part_*.srt"))
-    if not parts:
-        print(f"[LỖI] Không thấy part_*.srt trong {a.dir}")
-        return 1
-    allb, bad = [], False
-    for p in parts:
-        blocks, errors = read_srt(p)
+    """Ghép chữ "ID | chữ" (một file, hoặc mọi part_*.txt trong một thư mục)
+    vào cấu trúc (ID, timestamp) của SRC, ghi ra OUT."""
+    blocks, errors = read_srt(a.src)
+    if errors:
         for e in errors:
-            print(f"[LỖI] {p.name}: {e}")
-            bad = True
-        allb.extend(blocks)
-    if bad:
+            print(f"[LỖI] SRC: {e}")
         return 1
-    write_srt(a.outfile, allb)
-    print(f"Đã gộp {len(parts)} phần, {len(allb)} block -> {a.outfile}")
+    source = Path(a.textfile)
+    files = sorted(source.glob("part_*.txt")) if source.is_dir() else [source]
+    if not files:
+        print(f"[LỖI] Không thấy part_*.txt trong {source.as_posix()}")
+        return 1
+    texts, problems = {}, []
+    for f in files:
+        t, p = parse_text_file(f)
+        problems += p
+        for idx in set(t) & set(texts):
+            problems.append(f"{f.name}: ID {idx} đã có ở phần khác")
+        texts.update(t)
+    ids = [b.idx for b in blocks]
+    missing = [i for i in ids if i not in texts]
+    extra = sorted(set(texts) - set(ids), key=int)
+    if missing:
+        problems.append(f"thiếu {len(missing)} ID: {', '.join(missing[:20])}" + (" ..." if len(missing) > 20 else ""))
+    if extra:
+        problems.append(f"thừa {len(extra)} ID không có trong SRC: {', '.join(extra[:20])}")
+    if problems:
+        for p in problems:
+            print(f"[LỖI] {p}")
+        print("Không ghi file. Sửa file chữ rồi chạy lại.")
+        return 1
+    kept = 0
+    for b in blocks:
+        if texts[b.idx] == KEEP_MARK:  # "ID | =": giữ nguyên chữ của SRC
+            kept += 1
+            continue
+        b.text = [t.strip() for t in texts[b.idx].split(" / ")]
+    write_srt(a.out, blocks)
+    print(f"Đã ghép {len(blocks)} block -> {a.out}" + (f" ({kept} block giữ nguyên)" if kept else ""))
+    if a.cleanup and source.is_dir():
+        shutil.rmtree(source)
+        print(f"Đã dọn {source.as_posix()}/")
     return 0
 
 
 def cmd_diff(a):
     src, _ = read_srt(a.src)
     dst, _ = read_srt(a.dst)
+    if len(src) != len(dst):
+        print(f"[CẢNH BÁO] Số block khác nhau: SRC={len(src)} DST={len(dst)}. "
+              f"So theo vị trí nên từ chỗ lệch trở đi kết quả không còn đúng; "
+              f"chạy validate để xem chi tiết.\n")
     shown = changed = 0
     for s, d in zip(src, dst):
-        if s.text != d.text:
+        if (loose_key(s.text) != loose_key(d.text)) if a.loose else (s.text != d.text):
             changed += 1
             if shown < a.limit:
                 shown += 1
@@ -176,9 +299,10 @@ def cmd_diff(a):
     return 0
 
 
-def cmd_validate(a):
-    src, src_err = read_srt(a.src)
-    dst, dst_err = read_srt(a.dst)
+def check_pair(src_path, dst_path, target=None):
+    """Trả về (src, dst, lỗi, cảnh báo) của DST so với SRC."""
+    src, src_err = read_srt(src_path)
+    dst, dst_err = read_srt(dst_path)
     errors, warns = [], []
     errors += [f"SRC: {e}" for e in src_err]
     errors += [f"DST: {e}" for e in dst_err]
@@ -200,18 +324,22 @@ def cmd_validate(a):
         m = BAD_SHORTCUT_RE.search(dt)
         if m:
             warns.append(f"ID {d.idx}: phím tắt sai định dạng, nên dùng ' + ': {m.group(0)!r}")
-        if a.target:
+        if target:
             if CJK_RE.search(dt):
                 warns.append(f"ID {d.idx}: còn sót chữ Hán/Nhật/Hàn: {dt[:60]!r}")
-            if a.target == "en" and VI_ONLY_RE.search(dt):
+            if target == "en" and VI_ONLY_RE.search(dt):
                 warns.append(f"ID {d.idx}: có chữ tiếng Việt trong bản tiếng Anh: {dt[:60]!r}")
             if st and st == dt and len(st) > 3:
                 untranslated += 1
 
-    if a.target and untranslated:
+    if target and untranslated:
         warns.append(f"{untranslated} block giống hệt bản gốc (có thể chưa dịch, "
                      f"hoặc chỉ là tên riêng/tiếng kêu) - kiểm tra bằng lệnh diff")
+    return src, dst, errors, warns
 
+
+def cmd_validate(a):
+    src, dst, errors, warns = check_pair(a.src, a.dst, a.target)
     for e in errors[:50]:
         print(f"[LỖI] {e}")
     if len(errors) > 50:
@@ -263,14 +391,14 @@ def table_cells(line):
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-def load_glossary_terms(path, target):
-    """Trả về danh sách (ô gốc, [cách viết gốc], [phương án đích]) của các dòng ✅."""
+def load_approved_rows(path, src_col, dst_col):
+    """Trả về danh sách (ô nguồn, [cách viết nguồn], [cách viết đích]) của các dòng ✅
+    trong mọi bảng glossary có đủ cột src_col, dst_col và Trạng thái."""
     try:
         content = Path(path).read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as e:
         sys.exit(f"[LỖI] Không đọc được {path}: {e}")
     content = re.sub(r"<!--.*?-->", "", content, flags=re.S)
-    col_target = {"vi": "Tiếng Việt", "en": "English"}[target]
     terms, header = [], None
     for line in content.split("\n"):
         if not line.strip().startswith("|"):
@@ -282,37 +410,39 @@ def load_glossary_terms(path, target):
         if header is None:
             header = cells
             continue
-        if not {"Gốc", col_target, "Trạng thái"} <= set(header):
+        if not {src_col, dst_col, "Trạng thái"} <= set(header):
             continue
         row = dict(zip(header, cells))
         if "✅" not in row.get("Trạng thái", ""):
             continue
-        src_opts = split_options(row["Gốc"])
-        dst_opts = split_options(row[col_target])
+        src_opts = split_options(row[src_col])
+        dst_opts = split_options(row[dst_col])
         if src_opts and dst_opts:
-            terms.append((row["Gốc"], src_opts, dst_opts))
+            terms.append((row[src_col], src_opts, dst_opts))
     return terms
 
 
 def cmd_check_glossary(a):
-    terms = load_glossary_terms(a.glossary, a.target)
+    col_target = {"vi": "Tiếng Việt", "en": "English"}[a.target]
+    terms = load_approved_rows(a.glossary, "Gốc", col_target)
     if not terms:
-        print(f"Không có dòng ✅ nào có cả ô Gốc và ô {'Tiếng Việt' if a.target == 'vi' else 'English'} "
+        print(f"Không có dòng ✅ nào có cả ô Gốc và ô {col_target} "
               f"trong {a.glossary}, không có gì để kiểm tra.")
         return 0
     pair = aligned_blocks(a.src, a.dst)
     if pair is None:
         return 1
+    rules = [(cell, term_regex(src_opts), dst_opts, term_regex(dst_opts))
+             for cell, src_opts, dst_opts in terms]
     counts = {}
     for s, d in zip(*pair):
         st, dt = " / ".join(t.strip() for t in s.text), " / ".join(t.strip() for t in d.text)
-        st_low, dt_low = st.lower(), dt.lower()
-        for cell, src_opts, dst_opts in terms:
-            hit = next((o for o in src_opts if o.lower() in st_low), None)
-            if hit is None or any(o.lower() in dt_low for o in dst_opts):
+        for cell, src_re, dst_opts, dst_re in rules:
+            hit = src_re.search(st)
+            if hit is None or dst_re.search(dt):
                 continue
             counts[cell] = counts.get(cell, 0) + 1
-            print(f"ID {s.idx}: '{hit}' nên dịch là '{' / '.join(dst_opts)}' "
+            print(f"ID {s.idx}: '{hit.group(0)}' nên dịch là '{' / '.join(dst_opts)}' "
                   f"| gốc: {st} | dịch: {dt}")
     total = sum(counts.values())
     print(f"\nĐã kiểm tra {len(terms)} thuật ngữ ✅ trên {len(pair[0])} block: {total} vi phạm")
@@ -328,9 +458,7 @@ def cmd_find(a):
     except re.error as e:
         print(f"[LỖI] Regex sai: {e}")
         return 1
-    files = []
-    for f in a.files:  # PowerShell/cmd không tự mở rộng *.srt
-        files.extend(sorted(glob.glob(f)) if any(c in f for c in "*?[") else [f])
+    files = expand_files(a.files)
     total = 0
     for f in files:
         blocks, _ = read_srt(f)
@@ -340,6 +468,172 @@ def cmd_find(a):
                 total += 1
                 print(f"{Path(f).name} | {b.idx} | {text}")
     print(f"\n{total} block khớp trong {len(files)} file")
+    return 0
+
+
+def cmd_check_asr(a):
+    terms = load_approved_rows(a.glossary, "ASR nghe sai", "Đúng là")
+    if not terms:
+        print(f"Không có dòng ✅ nào ở mục Lỗi ASR trong {a.glossary}, không có gì để kiểm tra.")
+        return 0
+    rules = [(term_regex(wrong), term_regex(right), right) for _, wrong, right in terms]
+    files = expand_files(a.files)
+    total = 0
+    for f in files:
+        blocks, _ = read_srt(f)
+        for b in blocks:
+            text = " / ".join(t.strip() for t in b.text)
+            for wrong_re, right_re, right in rules:
+                # Bỏ cách viết đúng trước, để "图" sai không khớp vào "图层" đúng
+                hit = wrong_re.search(right_re.sub("\0", text))
+                if hit:
+                    total += 1
+                    print(f"{Path(f).name} | {b.idx} | '{hit.group(0)}' nên là "
+                          f"'{' / '.join(right)}' | {text}")
+    print(f"\nĐã kiểm tra {len(terms)} lỗi ASR ✅ trong {len(files)} file: {total} chỗ còn sót")
+    return 0
+
+
+def work_dir_for(path):
+    """Thư mục work/<tên>/ của bài chứa PATH: work/<tên>/..., trans/<tên>.<mã>.srt, cleaned/<tên>.srt."""
+    p = Path(path).resolve()
+    work = WORK.resolve()
+    try:
+        rel = p.relative_to(work)
+    except ValueError:
+        name = p.stem
+        if p.parent.name == "trans" and "." in name:
+            name = name.rsplit(".", 1)[0]  # ep01.vi -> ep01
+        return work / name
+    if len(rel.parts) < 2 or rel.parts[1] == "backup":
+        sys.exit(f"[LỖI] Không cất được {path}: chỉ cất file/thư mục bên trong {WORK.as_posix()}/<tên>/")
+    return work / rel.parts[0]
+
+
+def cmd_archive(a):
+    stamp = time.strftime("%Y%m%d-%H%M")
+    for path in a.paths:
+        p = Path(path)
+        if not p.exists():
+            print(f"(bỏ qua, không có) {path}")
+            continue
+        dest_dir = work_dir_for(p) / "backup"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        base = f"{p.stem}.{stamp}{p.suffix}" if p.is_file() else f"{p.name}.{stamp}"
+        dest, n = dest_dir / base, 2
+        while dest.exists():
+            dest = dest_dir / (f"{p.stem}.{stamp}-{n}{p.suffix}" if p.is_file() else f"{p.name}.{stamp}-{n}")
+            n += 1
+        if a.copy:
+            (shutil.copy2 if p.is_file() else shutil.copytree)(str(p), str(dest))
+        else:
+            shutil.move(str(p), str(dest))
+        print(f"{'Đã chép' if a.copy else 'Đã cất'} {path} -> "
+              f"{Path(os.path.relpath(dest)).as_posix()}")
+    return 0
+
+
+def cmd_parts(a):
+    blocks, errors = read_srt(a.src)
+    if errors:
+        for e in errors:
+            print(f"[LỖI] SRC: {e}")
+        return 1
+    d, size = Path(a.dir), a.size
+    total = (len(blocks) + size - 1) // size
+    todo = []
+    for n in range(1, total + 1):
+        rng = blocks[(n - 1) * size:n * size]
+        f = d / f"part_{n:03d}.txt"
+        want = [b.idx for b in rng]
+        if not f.exists():
+            state = "chưa làm"
+        else:
+            texts, problems = parse_text_file(f)
+            missing = [i for i in want if i not in texts]
+            extra = sorted(set(texts) - set(want), key=int)
+            if missing:
+                problems.append(f"thiếu {len(missing)} ID, từ {missing[0]}")
+            if extra:
+                problems.append(f"thừa ID {', '.join(extra[:5])}")
+            if problems:
+                more = f", +{len(problems) - 1}" if len(problems) > 1 else ""
+                state = f"LỖI ({problems[0]}{more})"
+            else:
+                state = "xong"
+        if state != "xong":
+            todo.append((f, rng))
+        print(f"{f.name}  block {rng[0].pos}-{rng[-1].pos}  {state}")
+    extra_files = sorted(p for p in d.glob("part_*.txt") if p.name > f"part_{total:03d}.txt")
+    for p in extra_files:
+        print(f"{p.name}  THỪA (ngoài số phần của SRC, có thể sót từ lần trước)")
+    print(f"\n{total - len(todo)}/{total} phần xong.", end=" ")
+    if extra_files:
+        print("Có phần thừa: cất bằng archive rồi làm lại.")
+    elif todo:
+        f, rng = todo[0]
+        print(f"Làm tiếp {f.name}: python tools/srt_tools.py text {Path(a.src).as_posix()} "
+              f"--from {rng[0].pos} --to {rng[-1].pos}")
+    else:
+        print(f"Ghép: python tools/srt_tools.py merge {Path(a.src).as_posix()} {d.as_posix()} <file đích>")
+    return 0 if not todo and not extra_files else 1
+
+
+LANG_RE = re.compile(r"^(?P<name>.+)\.(?P<code>[a-z]{2,3}(?:-[A-Za-z0-9]+)?)$")
+
+
+def cmd_status(a):
+    raw = {p.stem for p in RAW.glob("*.srt")}
+    cleaned = {p.stem for p in CLEANED.glob("*.srt")}
+    trans = {}
+    for p in TRANS.glob("*.srt"):
+        m = LANG_RE.match(p.stem)
+        if m:
+            trans.setdefault(m["name"], set()).add(m["code"])
+    langs = {p.stem[len("target-"):] for p in
+             Path(".agent/skills/translate-subtitle/references").glob("target-*.md")}
+    langs = sorted(langs.union(*trans.values()) if trans else langs)
+    names = sorted(raw | cleaned | set(trans))
+    if not names:
+        print(f"Chưa có file .srt nào. Bỏ file của FunASR vào {RAW.as_posix()}/")
+        return 0
+
+    def verdict(src, dst, target=None):
+        try:
+            _, _, errors, _ = check_pair(src, dst, target)
+        except SystemExit:
+            return "lỗi đọc"
+        return "FAIL" if errors else "PASS"
+
+    rows = [["Tên", "raw", "cleaned"] + langs]
+    for n in names:
+        row = [n, "có" if n in raw else "—"]
+        c = CLEANED / f"{n}.srt"
+        if n not in cleaned:
+            row.append("—")
+        else:
+            row.append(verdict(RAW / f"{n}.srt", c) if n in raw else "có")
+        for code in langs:
+            t = TRANS / f"{n}.{code}.srt"
+            if not t.exists():
+                row.append("—")
+                continue
+            if n not in cleaned:
+                row.append("không có gốc")
+                continue
+            cell = verdict(c, t, code)
+            if c.stat().st_mtime > t.stat().st_mtime:
+                cell += " · gốc sửa sau"
+            row.append(cell)
+        rows.append(row)
+
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+    for i, r in enumerate(rows):
+        print("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip())
+        if i == 0:
+            print("  ".join("-" * w for w in widths))
+    print("\nPASS/FAIL: kết quả validate so với bước trước. "
+          "\"gốc sửa sau\": cleaned/ đổi sau khi dịch, nên xem lại bản dịch.")
     return 0
 
 
@@ -356,14 +650,17 @@ def main():
 
     s = sub.add_parser("split"); s.add_argument("file")
     s.add_argument("--size", type=int, default=100)
-    s.add_argument("--out", help="mặc định .work/<tên file>/")
+    s.add_argument("--out", help="mặc định workspace/work/<tên file>/")
     s.set_defaults(fn=cmd_split)
 
-    s = sub.add_parser("merge"); s.add_argument("dir"); s.add_argument("outfile")
+    s = sub.add_parser("merge"); s.add_argument("src"); s.add_argument("textfile"); s.add_argument("out")
+    s.add_argument("--cleanup", action="store_true", help="ghép xong thì xóa thư mục part_*.txt")
     s.set_defaults(fn=cmd_merge)
 
     s = sub.add_parser("diff"); s.add_argument("src"); s.add_argument("dst")
     s.add_argument("--limit", type=int, default=50)
+    s.add_argument("--loose", action="store_true",
+                   help="bỏ qua khác biệt dấu câu, khoảng trắng, xuống dòng, hoa thường")
     s.set_defaults(fn=cmd_diff)
 
     s = sub.add_parser("validate"); s.add_argument("src"); s.add_argument("dst")
@@ -377,14 +674,34 @@ def main():
 
     s = sub.add_parser("check-glossary"); s.add_argument("src"); s.add_argument("dst")
     s.add_argument("--target", choices=["vi", "en"], required=True, help="ngôn ngữ của DST")
-    s.add_argument("--glossary", default="glossary.md")
+    s.add_argument("--glossary", default=str(GLOSSARY))
     s.set_defaults(fn=cmd_check_glossary)
 
     s = sub.add_parser("find"); s.add_argument("pattern"); s.add_argument("files", nargs="+")
     s.add_argument("--regex", action="store_true", help="coi PATTERN là biểu thức chính quy")
     s.set_defaults(fn=cmd_find)
 
+    s = sub.add_parser("check-asr"); s.add_argument("files", nargs="+")
+    s.add_argument("--glossary", default=str(GLOSSARY))
+    s.set_defaults(fn=cmd_check_asr)
+
+    s = sub.add_parser("archive"); s.add_argument("paths", nargs="+")
+    s.add_argument("--copy", action="store_true", help="chép thay vì chuyển (giữ bản gốc tại chỗ)")
+    s.set_defaults(fn=cmd_archive)
+
+    s = sub.add_parser("parts"); s.add_argument("src"); s.add_argument("dir")
+    s.add_argument("--size", type=int, default=100, help="số block mỗi phần (mặc định 100)")
+    s.set_defaults(fn=cmd_parts)
+
+    s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
+
     a = p.parse_args()
+    if Path(__file__).resolve().parent == (Path.cwd() / "tools").resolve():
+        for d in (RAW, CLEANED, TRANS):  # chạy từ gốc dự án: tạo sẵn chỗ để bỏ file vào
+            d.mkdir(parents=True, exist_ok=True)
+        if not GLOSSARY.exists() and GLOSSARY_TEMPLATE.exists():
+            shutil.copyfile(GLOSSARY_TEMPLATE, GLOSSARY)
+            print(f"(Đã tạo {GLOSSARY.as_posix()} từ {GLOSSARY_TEMPLATE.as_posix()})", file=sys.stderr)
     sys.exit(a.fn(a))
 
 

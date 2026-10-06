@@ -1,5 +1,9 @@
-.work/
-raw/*
-cleaned/*
-trans/*
-!*/.gitkeep
+# Dữ liệu dự án (raw, cleaned, trans, file tạm): chỉ nằm trên máy
+workspace/
+
+# Liên kết tới .agent/skills do tools/link_skills.py tạo
+.claude/skills
+.github/skills
+.agents/skills
+
+__pycache__/

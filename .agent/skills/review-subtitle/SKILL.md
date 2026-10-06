@@ -1,88 +1,87 @@
 ---
 name: review-subtitle
-description: Review, soát lỗi, kiểm tra, rà lại bản dịch phụ đề SRT trong trans/ so với bản gốc trong cleaned/ và theo glossary.md, tìm lỗi dịch sai nghĩa, sai thao tác, sai thuật ngữ, lệch xưng hô, rồi (nếu được yêu cầu) sửa theo kết quả review hoặc kiểm tra nhất quán chéo nhiều bài. Dùng skill này mỗi khi người dùng nói review, soát lỗi, kiểm tra bản dịch, rà lại sub, check bản dịch, sửa theo review, review chéo, hoặc gõ /review, kể cả khi họ chỉ nói "dịch xong rồi, xem giúp có lỗi không".
+description: Review, soát lỗi, kiểm tra, rà lại bản dịch phụ đề SRT trong workspace/trans/ so với bản gốc trong workspace/cleaned/ và theo workspace/glossary.md, tìm lỗi dịch sai nghĩa, sai thao tác, sai thuật ngữ, lệch xưng hô (giao cho subagent), trình bày cho người dùng chọn, rồi sửa đúng những mục người dùng chọn, hoặc kiểm tra nhất quán chéo nhiều bài. Dùng skill này mỗi khi người dùng nói review, soát lỗi, kiểm tra bản dịch, rà lại sub, check bản dịch, sửa theo review, review chéo, hoặc gõ /review, kể cả khi họ chỉ nói "dịch xong rồi, xem giúp có lỗi không".
 ---
 
 # Review Subtitle
 
-Mục tiêu: tìm ra những lỗi thật trong bản dịch phụ đề, để người dùng sửa được ngay mà không phải đọc lại cả file. Review chỉ có giá trị khi người dùng tin được nó: mỗi lỗi báo nhầm làm họ mất thời gian kiểm tra và dần mất tin vào cả danh sách, nên báo ít mà chắc còn hơn báo nhiều mà nhiễu.
+Review chia làm hai phần tách biệt:
 
-Review phải chấm theo đúng quy tắc mà bước dịch đã dùng (`glossary.md` và `references/target-<mã>.md` của skill `translate-subtitle`), không theo khẩu vị riêng.
+1. **Tìm lỗi**: giao cho subagent. Subagent bắt đầu với context sạch, không mang theo cách hiểu của phiên đã dịch, nên thấy lỗi khách quan hơn. Subagent chỉ đọc và trả danh sách lỗi trong câu trả lời, không tạo file, không sửa bản dịch.
+2. **Quyết định sửa**: thuộc về người dùng. Bạn trình bày kết quả, người dùng chọn có sửa không và sửa những mục nào, rồi bạn chỉ sửa đúng những mục đó.
 
-## Ba chế độ
+## Chế độ
 
 Xác định từ lời người dùng:
 
-- **Báo lỗi** (mặc định): chỉ liệt kê lỗi, không sửa file nào trong `trans/`.
-- **Sửa** ("sửa", "fix", "sửa theo review"): áp dụng các sửa đổi đã có trong danh sách lỗi.
-- **Chéo bài** ("chéo", "cross", "toàn khóa"): kiểm tra tính nhất quán giữa nhiều file.
+- **Báo lỗi** (mặc định): tìm lỗi, trình bày, hỏi người dùng muốn sửa gì. Không sửa `workspace/trans/`.
+- **Sửa** ("sửa", "fix", "sửa theo review"): áp dụng các mục người dùng chọn từ danh sách lỗi đã trình bày trong phiên này.
+- **Chéo bài** ("chéo", "cross", "toàn khóa"): kiểm tra nhất quán giữa nhiều bài. Không sửa `workspace/trans/`.
 
-Không rõ người dùng muốn gì thì dùng chế độ báo lỗi, vì nó không làm hỏng gì.
+Không rõ thì dùng chế độ báo lỗi.
 
 ## Thư mục
 
-- Bản dịch: `trans/<tên>.<mã>.srt`. Bản gốc tương ứng: `cleaned/<tên>.srt`.
-- Không bao giờ sửa `cleaned/` và `raw/`. Chế độ báo lỗi và chế độ chéo bài không sửa `trans/`.
-- Kết quả review và file tạm để trong `.work/<tên>/`.
+- Bản dịch `workspace/trans/<tên>.<mã>.srt`, bản gốc `workspace/cleaned/<tên>.srt`. Ngôn ngữ lấy từ đuôi file (`.vi.srt` → vi); đuôi lạ thì hỏi.
+- Không có file review: danh sách lỗi nằm trong câu trả lời của subagent và được trình bày trong chat.
+- Không bao giờ sửa `workspace/cleaned/`, `workspace/raw/`, dòng ✅ trong `workspace/glossary.md`. Chỉ chế độ sửa mới được sửa `workspace/trans/`.
 - Lệnh chạy từ thư mục gốc dự án: `python tools/srt_tools.py ...` (hoặc `python3`).
 
-## Chọn file
+## Giao việc cho subagent
 
-- Người dùng chỉ định file nào thì làm file đó.
-- Không chỉ định: review mọi file trong `trans/`, lần lượt từng file.
-- Ngôn ngữ lấy từ đuôi tên file (`.vi.srt` → vi, `.en.srt` → en). Đuôi khác thì hỏi người dùng.
-- Không có `cleaned/<tên>.srt` tương ứng: báo rõ và bỏ qua file đó, vì không có bản gốc chuẩn thì không đối chiếu được.
+Dùng công cụ subagent của môi trường đang chạy (VD công cụ Agent/Task trong Claude Code, `runSubagent` trong VS Code Copilot). Nếu người dùng chỉ định model cho review (VD "review bằng sonnet") và công cụ cho chọn model subagent, dùng model đó; tốt nhất là model khác với model đã dịch.
 
-## Chế độ báo lỗi: quy trình cho mỗi file
+Lời giao việc chỉ gồm những gì subagent cần, không kèm nhận xét hay phỏng đoán của bạn về bản dịch, để giữ góc nhìn độc lập:
 
-1. **Kiểm tra cấu trúc**: `python tools/srt_tools.py validate cleaned/<tên>.srt trans/<tên>.<mã>.srt --target <mã>`. Lỗi cấu trúc (sai ID, timestamp, số block) ghi vào danh sách lỗi nghiêm trọng. Nếu số block khớp thì vẫn review phần nội dung; lệch số block thì `pair` sẽ không chạy, dừng ở đây và báo.
-2. **Kiểm tra glossary bằng máy**: `python tools/srt_tools.py check-glossary cleaned/<tên>.srt trans/<tên>.<mã>.srt --target <mã>`. Mọi vi phạm đưa vào danh sách lỗi mức trung bình. Lệnh này chỉ so khớp chuỗi nên có thể báo nhầm (VD thuật ngữ được dịch bằng cách diễn đạt khác nhưng vẫn đúng ý glossary); xem lại ngữ cảnh trước khi đưa vào danh sách.
-3. **Đọc quy tắc**: đọc `glossary.md` và `.agent/skills/translate-subtitle/references/target-<mã>.md`. Dòng ✅ là bắt buộc; dòng ❓ chỉ là gợi ý nên lệch ❓ không phải lỗi.
-4. **Đọc đối chiếu**: `python tools/srt_tools.py pair cleaned/<tên>.srt trans/<tên>.<mã>.srt --from 1 --to 100`, rồi 101-200 và tiếp tục như vậy. Mỗi lần khoảng 100 block để đủ ngữ cảnh mà vẫn đọc kỹ. Nhớ rằng một câu có thể trải qua nhiều block: đánh giá theo cả câu, không theo từng mảnh.
-5. **Phân loại lỗi**:
-   - **Nghiêm trọng**: dịch sai nghĩa; bỏ sót ý; sai hướng dẫn thao tác (sai phím, sai chuột trái/phải, sai tên menu, sai con số, sai thứ tự bước). Với video hướng dẫn, lỗi thao tác là nặng nhất vì người học làm theo sẽ làm sai.
-   - **Trung bình**: vi phạm glossary; thuật ngữ hoặc tên không nhất quán trong file; xưng hô lệch; phím tắt sai định dạng; còn sót chữ gốc.
-   - **Nhẹ**: câu đọc gượng, dịch word-by-word, quá dài khó đọc kịp.
-6. **Chỉ báo lỗi thật**. Không báo những chỗ chỉ khác sở thích văn phong mà bản dịch vẫn đúng và tự nhiên: người dịch có quyền chọn cách diễn đạt riêng. Tự hỏi "nếu là người dùng, tôi có muốn sửa chỗ này không?" Không chắc là lỗi hay không thì vẫn ghi, nhưng ghi rõ "cần người dùng xác nhận" thay vì khẳng định.
-7. **Ghi danh sách lỗi** vào `.work/<tên>/review.<mã>.md`. Mỗi lỗi gồm: ID, mức độ, loại lỗi, gốc, bản dịch hiện tại, đề xuất sửa, lý do ngắn. Ví dụ:
+```
+Đọc và làm đúng theo .agent/skills/review-subtitle/references/find-errors.md
+Bản gốc: workspace/cleaned/ep03.srt
+Bản dịch: workspace/trans/ep03.vi.srt
+Ngôn ngữ: vi
+Phạm vi: toàn bộ
+```
 
-   ```
-   ### ID 57 | Nghiêm trọng | Sai thao tác
-   - Gốc: 按住Alt键点击图层缩览图
-   - Hiện tại: Nhấn Ctrl và bấm vào ảnh thu nhỏ của Layer
-   - Đề xuất: Giữ Alt và bấm vào ảnh thu nhỏ của Layer
-   - Lý do: Gốc nói Alt, bản dịch ghi Ctrl; hai phím làm hai việc khác nhau.
-   ```
+Mỗi file một subagent; nhiều file thì chạy song song vài file một lúc. Kiểm tra chéo dùng `references/cross-check.md`, giao một subagent cho mỗi ngôn ngữ kèm danh sách file.
 
-   File này là đầu vào cho chế độ sửa, kể cả khi sửa ở phiên khác, nên đề xuất sửa phải là câu hoàn chỉnh, dùng được ngay mà không cần đoán lại ý. Lỗi chia theo mức độ, nghiêm trọng đứng trước. Lỗi mà đề xuất cần người dùng xác nhận thì ghi chú "cần xác nhận" ở đầu mục để chế độ sửa không tự áp dụng.
-8. **Trả lời trong chat**: số lỗi theo mức độ; toàn bộ lỗi nghiêm trọng; tóm tắt các lỗi còn lại; đề xuất bổ sung glossary nếu thấy (thuật ngữ bị dịch nhiều kiểu, tên chưa có trong glossary); đường dẫn file review. Review nhiều file thì thêm một bảng tổng hợp ngắn, mỗi file một dòng.
+Môi trường không có subagent: tự làm theo đúng file hướng dẫn đó trong phiên hiện tại, và nhắc người dùng một lần rằng review ở phiên mới hoặc bằng model khác sẽ khách quan hơn.
+
+## Chế độ báo lỗi
+
+1. **Chọn file**:
+   - Người dùng chỉ định thì làm đúng file đó.
+   - Không chỉ định: chạy `status`, liệt kê các bản dịch PASS và hỏi người dùng review bài nào (một bài, vài bài, hay tất cả). Bản dịch FAIL thì báo lỗi cấu trúc, không cần subagent.
+   - Không có `workspace/cleaned/<tên>.srt` tương ứng: báo và bỏ qua.
+   - Bài có "gốc sửa sau" trong `status`: vẫn review, nhưng nhắc người dùng rằng `workspace/cleaned/` đã đổi sau khi dịch.
+2. **Giao việc** cho subagent như trên.
+3. **Kiểm tra kết quả**: câu trả lời phải có phần tổng và các mục đúng format (ID, mức độ, gốc, hiện tại, đề xuất, lý do). Thiếu hoặc hỏng thì giao lại một lần; vẫn hỏng thì báo người dùng.
+4. **Đối chiếu nhanh**: với mỗi lỗi nghiêm trọng, `pair` đúng ID đó để chắc chữ "Gốc" và "Hiện tại" khớp file thật (subagent có thể chép nhầm block). Mục không khớp thì ghi rõ khi trình bày, không tự bỏ.
+   Với mỗi mục "Lỗi ở bản gốc", tự kiểm tra trước khi đề xuất sửa `workspace/cleaned/`: xem ngữ cảnh bằng `text --from N --to M`, và chữ bị nghi sai có thể là tên đúng trên giao diện phần mềm hay thuật ngữ đúng không (VD giao diện Blender tiếng Trung gọi X-Ray là 透视, nên 透视模式 không phải lỗi ASR). Subagent chỉ đoán từ bản dịch nên dễ báo nhầm ở phần này. Khi trình bày, chia rõ mục nào bạn đồng ý sửa, mục nào nên giữ nguyên (kèm lý do).
+5. **Trình bày** trong chat, giữ nguyên format từng mục của subagent để người dùng chọn theo ID:
+   - Số lỗi theo mức độ; review nhiều file thì một bảng, mỗi file một dòng.
+   - Toàn bộ lỗi nghiêm trọng (ID, hiện tại → đề xuất, lý do ngắn).
+   - Lỗi trung bình và nhẹ: đầy đủ nếu ít (khoảng 20 mục trở xuống), nhiều hơn thì gom theo loại kèm danh sách ID; người dùng hỏi thì đưa chi tiết.
+   - Lỗi ở bản gốc và đề xuất glossary nếu có.
+6. **Hỏi người dùng** muốn làm gì, VD: sửa tất cả, chỉ lỗi nghiêm trọng, chỉ các ID cụ thể, xác nhận hoặc bỏ các mục "cần xác nhận", sửa theo đề xuất khác của chính họ, hay không sửa. Dừng ở đây, chờ trả lời.
 
 ## Chế độ sửa
 
-1. **Đọc** `.work/<tên>/review.<mã>.md`. Chưa có thì chạy chế độ báo lỗi trước.
-2. **Sao lưu** bản dịch hiện tại vào `.work/<tên>/backup/<tên>.<mã>.<YYYYMMDD-HHMM>.srt` trước khi sửa, để hoàn tác được nếu sửa hỏng.
-3. **Chỉ sửa đúng các block có trong danh sách lỗi**. Nếu người dùng chỉ định mức độ hoặc ID cụ thể (VD "chỉ sửa lỗi nghiêm trọng", "sửa ID 57 và 60") thì chỉ sửa phần đó. Bỏ qua mục đang ghi "cần xác nhận" trừ khi người dùng đã xác nhận. Không nhân tiện viết lại block khác, vì mỗi thay đổi ngoài danh sách là một thay đổi người dùng chưa duyệt. Chỉ thay phần chữ; ID, timestamp, số block, thứ tự giữ nguyên.
-4. **Kiểm tra**: chạy `validate ... --target <mã>` và `check-glossary ...`. Validate phải PASS. Vi phạm glossary còn lại thì xem có thuộc phần được phép sửa không; nếu có thì sửa nốt, nếu không thì báo.
-5. **So sánh**: `python tools/srt_tools.py diff .work/<tên>/backup/<tên>.<mã>.<thời gian>.srt trans/<tên>.<mã>.srt`. Báo trong chat các block đã đổi (cũ → mới) và những mục trong danh sách chưa sửa kèm lý do.
+Chỉ chạy khi người dùng đã nói rõ sửa những gì, dựa trên danh sách lỗi đã trình bày trong phiên này. Phiên này chưa có danh sách (VD `/review sửa ep03` ở phiên mới) thì chạy chế độ báo lỗi trước và hỏi lại, vì người dùng chưa thấy danh sách thì chưa chọn được.
+
+1. **Lấy các mục người dùng chọn** từ danh sách trong phiên. Bỏ qua mục đã sửa ở lượt trước trong phiên, và mục `cần xác nhận` mà người dùng chưa xác nhận.
+2. **Sao lưu**: `python tools/srt_tools.py archive --copy workspace/trans/<tên>.<mã>.srt` (lệnh in ra đường dẫn bản sao lưu).
+3. **Sửa đúng các block đã chọn**, theo `Đề xuất` (hoặc cách sửa người dùng đưa ra). Không nhân tiện viết lại block khác. Chỉ thay phần chữ; ID, timestamp, số block, thứ tự giữ nguyên.
+4. **Kiểm tra**: `validate ... --target <mã>` phải PASS; chạy `check-glossary` và báo vi phạm còn lại, không tự sửa ngoài phần được chọn.
+5. **Báo cáo**: `diff <bản sao lưu> workspace/trans/<tên>.<mã>.srt`, liệt kê block đã đổi (cũ → mới), các mục bỏ qua kèm lý do, và các mục còn `chờ duyệt` để người dùng chọn tiếp nếu muốn.
 
 ## Chế độ chéo bài
 
-Mục đích: bắt những lỗi mà từng file đọc riêng thì không thấy, vì mỗi bài dùng một cách dịch khác nhau cho cùng một thuật ngữ. Chế độ này không sửa file dịch.
-
-1. **Glossary từng cặp**: chạy `check-glossary` cho từng cặp `cleaned/<tên>.srt` ↔ `trans/<tên>.<mã>.srt`, tổng hợp số vi phạm theo thuật ngữ và theo bài.
-2. **Thuật ngữ không nhất quán giữa các bài**: với các thuật ngữ trong glossary (cả ✅ lẫn ❓) và các thuật ngữ kỹ thuật lặp lại nhiều trong bản gốc, dùng `python tools/srt_tools.py find "<thuật ngữ>" cleaned/*.srt` để lấy các ID chứa thuật ngữ, rồi `pair` đúng các block đó (`--from N --to N`) để xem mỗi bài dịch thế nào. Báo những thuật ngữ có từ hai cách dịch trở lên, kèm tên file và ID ví dụ cho từng cách. Cũng có thể `find` trong `trans/*.srt` để đếm mỗi cách dịch xuất hiện bao nhiêu lần, rồi đề xuất cách chiếm đa số hoặc cách khớp giao diện phần mềm.
-3. **Xưng hô**: lấy mẫu vài đoạn mỗi bài (đầu, giữa, cuối) bằng `pair`, kiểm tra giảng viên hoặc nhân vật chính có giữ nguyên cách xưng hô với người xem/người nghe giữa các bài không (VD bài này "mình - các bạn", bài kia "tôi - các bạn"). Chỉ báo khi lệch thật, không phải khi bối cảnh đổi.
-4. **Đề xuất glossary**: liệt kê các thuật ngữ và xưng hô nên đưa vào hoặc sửa trong `glossary.md` với trạng thái ❓, mỗi mục kèm cách chọn đề xuất và lý do. Chỉ ghi vào `glossary.md` khi người dùng đồng ý. Không tự sửa file dịch ở chế độ này; muốn sửa thì người dùng chạy chế độ sửa cho từng file (sau khi glossary đã chốt, `check-glossary` sẽ chỉ ra chỗ cần sửa).
-
-Ghi kết quả vào `.work/cross-review.md` và nêu đường dẫn trong chat.
+1. Chọn các bài có bản dịch ngôn ngữ đó (hoặc các bài người dùng chỉ định).
+2. Giao subagent theo `references/cross-check.md`.
+3. Trình bày: thuật ngữ dịch nhiều kiểu (cách đề xuất cho mỗi cái), chỗ lệch xưng hô, đề xuất glossary. Hỏi người dùng có muốn đưa đề xuất vào `workspace/glossary.md` (trạng thái ❓) không. Muốn sửa bản dịch thì sau khi chốt glossary, chạy chế độ báo lỗi cho từng bài; `check-glossary` sẽ chỉ ra chỗ cần sửa.
 
 ## Không được làm
 
-- Không sửa `cleaned/` hay `raw/`. Nếu phát hiện lỗi ở bản gốc (VD ASR nghe sai mà bước clean bỏ sót), báo người dùng chứ không sửa, vì bản dịch dựa trên nó.
-- Không sửa `trans/` ngoài chế độ sửa.
-- Không đưa ghi chú, Markdown hay giải thích vào file phụ đề. Mọi nhận xét nằm trong file review hoặc trả lời chat.
-- Không sửa hay xóa dòng ✅ trong glossary. Thấy dòng ✅ có vẻ sai thì nêu trong báo cáo.
-
-## Gợi ý cho người dùng
-
-Review hiệu quả nhất khi làm ở phiên mới, và tốt nhất bằng model khác với model đã dịch: cùng một model thường lặp lại đúng cách hiểu sai của chính nó nên khó thấy lỗi của mình. Nếu đang ở cùng phiên dịch, nhắc người dùng điều này một lần ngắn gọn trong báo cáo.
+- Không sửa `workspace/cleaned/` hay `workspace/raw/`. Lỗi ở bản gốc thì báo người dùng.
+- Không sửa `workspace/trans/` ngoài chế độ sửa, và trong chế độ sửa không sửa ngoài các mục người dùng chọn.
+- Không đưa ghi chú, Markdown hay giải thích vào file phụ đề.
+- Không sửa hay xóa dòng ✅ trong glossary; thấy có vẻ sai thì nêu trong báo cáo.

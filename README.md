@@ -7,16 +7,24 @@ Bộ mẫu để copy vào mỗi dự án phụ đề mới. Cần Python 3.8+ (
 ```
 subtitle-kit/
 ├── AGENTS.md                 # luật chung của dự án
-├── glossary.md               # để trống, điền theo từng dự án
-├── raw/                      # bỏ file .srt của FunASR vào đây
-├── cleaned/                  # bản đã sửa lỗi
-├── trans/                    # bản dịch: <tên>.vi.srt, <tên>.en.srt
-├── tools/srt_tools.py        # kiểm tra, chia, gộp, đối chiếu, tìm file
+├── glossary.template.md      # mẫu glossary trống, tool tự chép thành workspace/glossary.md
+├── workspace/                # dữ liệu, chỉ nằm trên máy (đã ignore), tool tự tạo
+│   ├── glossary.md           # glossary của dự án (tên, xưng hô, thuật ngữ)
+│   ├── raw/                  # bỏ file .srt của FunASR vào đây
+│   ├── cleaned/              # bản đã sửa lỗi
+│   ├── trans/                # bản dịch: <tên>.vi.srt, <tên>.en.srt
+│   └── work/                 # file tạm, sao lưu (backup/), xóa được
+├── tools/srt_tools.py        # kiểm tra, chia, gộp, đối chiếu, tìm file, tiến độ
+├── tools/link_skills.py      # liên kết skill cho Claude Code / Copilot
+├── tests/                    # python -m unittest discover tests
 └── .agent/
     ├── skills/
     │   ├── clean-funasr/
+    │   │   └── references/   # audit.md (subagent soát bản clean)
     │   ├── build-glossary/
+    │   │   └── references/   # extract.md (subagent trích ứng viên)
     │   ├── review-subtitle/
+    │   │   └── references/   # find-errors.md, cross-check.md (cho subagent)
     │   └── translate-subtitle/
     │       └── references/   # target-vi.md, target-en.md
     └── workflows/            # lệnh slash cho Antigravity
@@ -29,17 +37,17 @@ subtitle-kit/
 
 ## Cách dùng
 
-1. Copy cả thư mục này thành dự án mới, bỏ các file `.srt` của FunASR vào `raw/`.
-2. `/clean` → kiểm tra vài chỗ trong `cleaned/`.
-3. `/glossary` → duyệt `glossary.md`, đổi ❓ thành ✅ cho dòng đồng ý.
+1. Copy cả thư mục này thành dự án mới, bỏ các file `.srt` của FunASR vào `workspace/raw/`.
+2. `/clean` → kiểm tra vài chỗ trong `workspace/cleaned/`.
+3. `/glossary` → duyệt `workspace/glossary.md`, đổi ❓ thành ✅ cho dòng đồng ý.
 4. `/trans-vi` hoặc `/trans-en`.
-5. `/review` → đọc `.work/<tên>/review.<mã>.md`; muốn áp dụng thì `/review sửa`.
+5. `/review` → subagent tìm lỗi, agent trình bày và hỏi bạn muốn sửa gì; trả lời VD "sửa lỗi nghiêm trọng", "sửa ID 57, 60", "ID 61 sửa thành ...". Danh sách lỗi chỉ nằm trong chat, không tạo file.
 
 Có thể thêm tên file sau lệnh, VD `/trans-en ep03.srt`. Hoặc nói thường: "dịch ep03 sang tiếng Việt".
 
-Lệnh `/review` có ba chế độ: mặc định chỉ báo lỗi (không sửa file), `/review sửa` để sửa theo danh sách lỗi (có sao lưu trước), `/review chéo` để kiểm tra nhất quán giữa các bài. VD `/review ep03.vi.srt`, `/review sửa ep03.vi.srt chỉ lỗi nghiêm trọng`.
+Lệnh `/review` có ba chế độ: mặc định tìm lỗi rồi hỏi bạn (không tự sửa), `/review sửa` để sửa các mục bạn chọn từ danh sách vừa trình bày (có sao lưu trước; ở phiên mới thì review lại trước), `/review chéo` để kiểm tra nhất quán giữa các bài. VD `/review ep03.vi.srt`, `/review sửa ep03.vi.srt chỉ lỗi nghiêm trọng`.
 
-**Lưu ý**: nên review ở phiên mới, tốt nhất bằng model khác với model đã dịch, vì cùng một model thường lặp lại đúng cách hiểu sai của chính nó.
+**Subagent**: việc chỉ đọc và báo cáo được giao cho subagent với context sạch: tìm lỗi bản dịch (`/review`), soát bản clean (bước cuối của `/clean`), đọc từng bài để lập glossary (`/glossary`). Subagent không sửa file nào; sửa gì là do bạn chọn. Có thể chỉ định model cho subagent, VD `/review ep03 bằng sonnet`; tốt nhất là model khác với model đã dịch, vì cùng một model thường lặp lại đúng cách hiểu sai của chính nó. Công cụ không có subagent thì agent tự làm trong phiên hiện tại.
 
 ### Quy trình cho khóa học
 
@@ -49,11 +57,15 @@ Với khóa học nhiều bài, thuật ngữ và xưng hô phải thống nhấ
 2. `/glossary` rồi duyệt, đổi ❓ thành ✅.
 3. Dịch thử 2–3 bài đầu.
 4. `/review` các bài đó.
-5. Chỉnh `glossary.md` theo những gì review phát hiện (thuật ngữ dịch lệch, xưng hô).
+5. Chỉnh `workspace/glossary.md` theo những gì review phát hiện (thuật ngữ dịch lệch, xưng hô).
 6. Dịch phần còn lại.
 7. `/review chéo` để bắt thuật ngữ không nhất quán giữa các bài, rồi `/review sửa` từng file nếu cần.
 
-Muốn dịch lại bằng model khác: xóa file trong `trans/` rồi chạy lại lệnh dịch. `cleaned/` vẫn nguyên, không cần chạy lại FunASR hay clean.
+Muốn dịch lại bằng model khác: nói "dịch lại ep03". Agent sẽ cất bản dịch cũ và các phần đã dịch vào `workspace/work/ep03/backup/` (lệnh `archive`) rồi dịch từ đầu, không trộn với lần trước. `workspace/cleaned/` vẫn nguyên, không cần chạy lại FunASR hay clean.
+
+Bị ngắt giữa chừng (mất mạng, hết phiên): gọi lại lệnh dịch là được. Agent chạy `parts` để biết phần nào đã xong, phần nào dở, rồi làm tiếp; không cần file checklist.
+
+Xem tiến độ cả khóa: `python tools/srt_tools.py status`.
 
 ## Dùng với công cụ khác
 
@@ -62,34 +74,45 @@ Skill theo chuẩn mở Agent Skills nên dùng được ở nhiều nơi, chỉ
 | Công cụ | Thư mục skill | Gọi lệnh |
 |---|---|---|
 | Antigravity | `.agent/skills/` (sẵn) | `/clean`, `/glossary`, `/trans-vi`, `/trans-en`, `/review` (qua workflows) |
-| VS Code + Copilot | copy sang `.agents/skills/` hoặc `.github/skills/` | `/clean-funasr`, `/build-glossary`, `/translate-subtitle vi`, `/review-subtitle` |
-| Claude Code | copy sang `.claude/skills/` | `/clean-funasr`, `/build-glossary`, `/translate-subtitle en`, `/review-subtitle` |
+| VS Code + Copilot | `python tools/link_skills.py .github/skills` | `/clean-funasr`, `/build-glossary`, `/translate-subtitle vi`, `/review-subtitle` |
+| Claude Code | `python tools/link_skills.py` (tạo `.claude/skills/`) | `/clean-funasr`, `/build-glossary`, `/translate-subtitle en`, `/review-subtitle` |
 
-Thư mục `workflows/` chỉ dành cho Antigravity; công cụ khác gọi thẳng tên skill. Đường dẫn có thể thay đổi theo phiên bản công cụ, nếu skill không hiện ra hãy kiểm tra tài liệu của công cụ đó.
+`link_skills.py` tạo liên kết (junction trên Windows, symlink trên macOS/Linux) trỏ về `.agent/skills/`, nên sửa skill một chỗ là mọi công cụ thấy ngay; liên kết đã nằm trong `.gitignore`. Thư mục `workflows/` chỉ dành cho Antigravity; công cụ khác gọi thẳng tên skill. Đường dẫn có thể thay đổi theo phiên bản công cụ, nếu skill không hiện ra hãy kiểm tra tài liệu của công cụ đó.
 
 ## Lệnh srt_tools.py
 
 ```
-python tools/srt_tools.py info  raw/ep01.srt
-python tools/srt_tools.py text  cleaned/ep01.srt --from 1 --to 50
-python tools/srt_tools.py diff  raw/ep01.srt cleaned/ep01.srt
-python tools/srt_tools.py validate cleaned/ep01.srt trans/ep01.vi.srt --target vi
-python tools/srt_tools.py split cleaned/ep01.srt --size 100
-python tools/srt_tools.py merge .work/ep01/vi trans/ep01.vi.srt
-python tools/srt_tools.py pair  cleaned/ep01.srt trans/ep01.vi.srt --from 1 --to 100
-python tools/srt_tools.py check-glossary cleaned/ep01.srt trans/ep01.vi.srt --target vi
-python tools/srt_tools.py find "图层" cleaned/*.srt
-python tools/srt_tools.py find "lớp|layer" trans/*.vi.srt --regex
+python tools/srt_tools.py info  workspace/raw/ep01.srt
+python tools/srt_tools.py text  workspace/cleaned/ep01.srt --from 1 --to 50
+python tools/srt_tools.py diff  workspace/raw/ep01.srt workspace/cleaned/ep01.srt
+python tools/srt_tools.py validate workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --target vi
+python tools/srt_tools.py merge workspace/cleaned/ep01.srt workspace/work/ep01/vi workspace/trans/ep01.vi.srt
+python tools/srt_tools.py pair  workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --from 1 --to 100
+python tools/srt_tools.py check-glossary workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --target vi
+python tools/srt_tools.py find "图层" workspace/cleaned/*.srt
+python tools/srt_tools.py find "lớp|layer" workspace/trans/*.vi.srt --regex
+python tools/srt_tools.py check-asr workspace/cleaned/*.srt
+python tools/srt_tools.py parts workspace/cleaned/ep01.srt workspace/work/ep01/vi
+python tools/srt_tools.py archive workspace/trans/ep01.vi.srt workspace/work/ep01/vi
+python tools/srt_tools.py status
 ```
 
 `validate` là chốt chặn quan trọng nhất: sai số block, ID hay timestamp là FAIL. Bạn cũng có thể tự chạy để kiểm tra bản dịch từ bất kỳ nguồn nào.
 
 - `pair` in song song "ID | gốc | dịch" để đối chiếu; dừng với lỗi nếu hai file lệch số block.
-- `check-glossary` đọc các dòng ✅ trong `glossary.md` (cột Gốc + cột Tiếng Việt/English, nhận theo tên cột) và báo block có thuật ngữ gốc mà bản dịch không dùng cách dịch đã duyệt. Chỉ là cảnh báo; dòng ❓ không bị kiểm tra.
+- `check-glossary` đọc các dòng ✅ trong `workspace/glossary.md` (cột Gốc + cột Tiếng Việt/English, nhận theo tên cột) và báo block có thuật ngữ gốc mà bản dịch không dùng cách dịch đã duyệt. Chỉ là cảnh báo; dòng ❓ không bị kiểm tra.
+  Thuật ngữ chữ Latin khớp trọn từ ("art" không khớp "start"); chữ Hán khớp chuỗi con.
 - `find` tìm trong phần chữ của nhiều file (không phân biệt hoa thường), dùng cho review chéo bài.
+- `check-asr` báo chỗ trong `workspace/cleaned/` còn sót lỗi ASR ✅ ở mục 6 glossary.
+- `merge` ghép chữ dạng `ID | chữ` vào đúng ID, timestamp của file gốc, nên agent không phải chép lại timestamp. Nhận một file hoặc cả thư mục `part_*.txt`; thiếu, thừa, trùng ID hay block rỗng thì từ chối. `--cleanup` xóa thư mục phần sau khi ghép.
+- `parts` liệt kê `part_*.txt` nào (mỗi phần 100 block) đã xong, dở hay chưa làm, phần thừa sót từ lần trước, và in lệnh `text` để đọc phần tiếp theo. Dùng để làm tiếp sau khi bị ngắt.
+- File dài được làm theo từng đoạn `text --from --to`; bước clean ghi `workspace/work/<tên>/summary.md` (do subagent tóm tắt) để bước dịch không phải đọc lại cả bài.
+- `archive` chuyển file/thư mục vào `workspace/work/<tên>/backup/` kèm thời gian (`--copy` để chép, giữ bản gốc).
+- `status` in bảng mỗi bài một dòng: đã clean/dịch chưa, validate PASS/FAIL, `workspace/cleaned/` có bị sửa sau khi dịch không. Tính trực tiếp từ file nên không có file tiến độ nào cần lưu hay ignore.
 
 ## Mở rộng
 
 - Thêm ngôn ngữ đích: tạo `.agent/skills/translate-subtitle/references/target-<mã>.md`, thêm workflow `trans-<mã>.md`, và thêm mã vào `--target` trong `srt_tools.py` nếu cần kiểm tra riêng.
-- Quy định thuật ngữ kỹ thuật, tên phần mềm, phím tắt nằm ở mục "Thuật ngữ kỹ thuật, phần mềm, phím tắt" trong `target-vi.md` / `target-en.md`; muốn đổi riêng cho một dự án thì ghi vào mục 4 của `glossary.md`. `validate` sẽ cảnh báo phím tắt viết sai kiểu như "Ctrl cộng R".
-- Lỗi ASR bị lặp lại nhiều: ghi vào mục 6 của glossary, bước clean sẽ tự sửa theo.
+- Quy định thuật ngữ kỹ thuật, tên phần mềm, phím tắt nằm ở mục "Thuật ngữ kỹ thuật, phần mềm, phím tắt" trong `target-vi.md` / `target-en.md`; muốn đổi riêng cho một dự án thì ghi vào mục 4 của `workspace/glossary.md`. `validate` sẽ cảnh báo phím tắt viết sai kiểu như "Ctrl cộng R".
+- Lỗi ASR bị lặp lại nhiều: ghi vào mục 6 của glossary, bước clean sẽ tự sửa theo (và `check-asr` bắt chỗ sót).
+- Sửa `srt_tools.py` xong thì chạy `python -m unittest discover tests`.
