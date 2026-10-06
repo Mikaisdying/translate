@@ -132,6 +132,77 @@ class ToolTest(unittest.TestCase):
         code, out = self.run_tool("check-glossary", "workspace/cleaned/a.srt", "workspace/trans/a.vi.srt", "--target", "vi")
         self.assertIn("0 vi phạm", out)
 
+    # ---- lint, review-prep, pair --ids ----
+
+    def lint(self, src, dst, *extra):
+        self.write("workspace/cleaned/a.srt", srt(*src))
+        self.write("workspace/trans/a.vi.srt", srt(*dst))
+        return self.run_tool("lint", "workspace/cleaned/a.srt", "workspace/trans/a.vi.srt", *extra)
+
+    def test_lint_finds_mechanical_errors(self):
+        # Xen block "好" giữa các ca để chữ của block bên cạnh không che lỗi
+        code, out = self.lint(
+            ["设置为 30 帧", "好", "按 Ctrl+Z 撤销", "好", "右键点击图层", "好",
+             "打开 Gaussian Blur", "好", "按空格键播放", "好"],
+            ["Đặt thành 25 khung hình", "Ừ", "Nhấn Ctrl + Y để hoàn tác", "Ừ",
+             "Click chuột trái vào Layer", "Ừ", "Mở bộ lọc làm mờ", "Ừ", "Bấm để phát", "Ừ"],
+            "--cps", "0")
+        self.assertEqual(code, 0)
+        self.assertIn("ID 1 | Số | gốc có 30", out)
+        self.assertIn("ID 3 | Phím | gốc có ctrl+z", out)
+        self.assertIn("ID 5 | Chuột", out)
+        self.assertIn("ID 7 | Thuật ngữ Latin | gốc có Gaussian, Blur", out)
+        self.assertIn("ID 9 | Phím | gốc nói phím Space", out)
+        self.assertIn("Lint: 5 chỗ", out)
+
+    def test_lint_no_false_positive(self):
+        code, out = self.lint(
+            ["数值是 0,0,0，设置为 1.5", "按 Ctrl 加 Shift 加 S 保存", "右键菜单", "打开 Photoshop", "好"],
+            ["Giá trị là 0, 0, 0, đặt thành 1,5", "Nhấn Ctrl + Shift + S để lưu", "menu chuột phải",
+             "Mở", "photoshop lên nhé"],  # tên phần mềm bị dồn sang block sau vẫn tính là có
+            "--cps", "0")
+        self.assertIn("Lint: 0 chỗ", out)
+
+    def test_lint_reading_speed_and_range(self):
+        code, out = self.lint(["好", "很长的一句话"],
+                              ["Ừ", "Một câu rất dài, dài đến mức không ai đọc kịp trong một giây"])
+        self.assertIn("ID 2 | Đọc nhanh", out)
+        self.assertNotIn("ID 1 |", out)
+        code, out = self.lint(["好", "很长的一句话"],
+                              ["Ừ", "Một câu rất dài, dài đến mức không ai đọc kịp trong một giây"],
+                              "--from", "1", "--to", "1")
+        self.assertIn("Lint: 0 chỗ", out)
+
+    def test_lint_skips_glossary_terms(self):
+        self.write("workspace/glossary.md", GLOSSARY)
+        code, out = self.lint(["这个 mask 很好"], ["Mặt nạ này tốt"], "--cps", "0")
+        self.assertIn("Lint: 0 chỗ", out)   # mask có trong glossary: để check-glossary lo
+
+    def test_review_prep(self):
+        self.write("workspace/glossary.md", GLOSSARY)
+        self.write("workspace/cleaned/a.srt", srt(*["点击图层"] * 5))
+        self.write("workspace/trans/a.vi.srt", srt(*["Bấm vào Layer"] * 4 + ["Bấm vào lớp"]))
+        code, out = self.run_tool("review-prep", "workspace/cleaned/a.srt", "workspace/trans/a.vi.srt",
+                                  "--target", "vi", "--size", "2", "--from", "2")
+        self.assertEqual(code, 0, out)
+        self.assertIn("KẾT QUẢ: PASS", out)
+        self.assertIn("ID 5:", out)
+        self.assertIn("trên 4 block: 1 vi phạm", out)
+        self.assertIn("--from 2 --to 3", out)
+        self.assertIn("--from 4 --to 5", out)
+
+        self.write("workspace/trans/a.vi.srt", srt("Bấm vào Layer"))
+        code, out = self.run_tool("review-prep", "workspace/cleaned/a.srt", "workspace/trans/a.vi.srt", "--target", "vi")
+        self.assertEqual(code, 1)
+        self.assertNotIn("## Lint", out)
+
+    def test_pair_ids(self):
+        self.write("workspace/cleaned/a.srt", srt("一", "二", "三", "四", "五"))
+        self.write("workspace/trans/a.vi.srt", srt("1", "2", "3", "4", "5"))
+        code, out = self.run_tool("pair", "workspace/cleaned/a.srt", "workspace/trans/a.vi.srt", "--ids", "1,3-4")
+        self.assertEqual(out.split("\n")[:3], ["1 | 一 | 1", "3 | 三 | 3", "4 | 四 | 4"])
+        self.assertNotIn("5 |", out)
+
     # ---- check-asr ----
 
     def test_check_asr(self):

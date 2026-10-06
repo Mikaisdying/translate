@@ -41,7 +41,9 @@ Ngôn ngữ: vi
 Phạm vi: toàn bộ
 ```
 
-Mỗi file một subagent; nhiều file thì chạy song song vài file một lúc. Kiểm tra chéo dùng `references/cross-check.md`, giao một subagent cho mỗi ngôn ngữ kèm danh sách file.
+Mỗi file một subagent; nhiều file thì chạy song song vài file một lúc.
+
+File dài (xem số block bằng `info`): trên khoảng 400 block thì chia thành các khoảng liền nhau, mỗi khoảng khoảng 300-350 block (VD 1028 block → `block 1-343`, `block 344-686`, `block 687-1028`), mỗi khoảng một subagent chạy song song, ghi `Phạm vi: block N-M`. Mỗi subagent có context ngắn nên đọc kỹ hơn, và không phải mang theo cả nghìn block đã đọc qua mỗi lượt gọi lệnh. Kiểm tra chéo dùng `references/cross-check.md`, giao một subagent cho mỗi ngôn ngữ kèm danh sách file.
 
 Môi trường không có subagent: tự làm theo đúng file hướng dẫn đó trong phiên hiện tại, và nhắc người dùng một lần rằng review ở phiên mới hoặc bằng model khác sẽ khách quan hơn.
 
@@ -54,7 +56,8 @@ Môi trường không có subagent: tự làm theo đúng file hướng dẫn đ
    - Bài có "gốc sửa sau" trong `status`: vẫn review, nhưng nhắc người dùng rằng `workspace/cleaned/` đã đổi sau khi dịch.
 2. **Giao việc** cho subagent như trên.
 3. **Kiểm tra kết quả**: câu trả lời phải có phần tổng và các mục đúng format (ID, mức độ, gốc, hiện tại, đề xuất, lý do). Thiếu hoặc hỏng thì giao lại một lần; vẫn hỏng thì báo người dùng.
-4. **Đối chiếu nhanh**: với mỗi lỗi nghiêm trọng, `pair` đúng ID đó để chắc chữ "Gốc" và "Hiện tại" khớp file thật (subagent có thể chép nhầm block). Mục không khớp thì ghi rõ khi trình bày, không tự bỏ.
+   File đã chia khoảng: gộp các câu trả lời thành một danh sách (cộng tổng, bỏ mục trùng ở chỗ giáp ranh). Vì mỗi subagent chỉ thấy một khoảng, tự kiểm tra thêm phần nhất quán trong cả file: thuật ngữ, tên nằm trong `Đề xuất glossary` của các khoảng mà cách dịch khác nhau giữa các khoảng thì `find` trong bản dịch để đếm mỗi cách, rồi thêm một mục mức trung bình kèm cách đề xuất.
+4. **Đối chiếu nhanh**: gom ID của mọi lỗi nghiêm trọng vào một lệnh `pair <gốc> <dịch> --ids 57,63,120-121` để chắc chữ "Gốc" và "Hiện tại" khớp file thật (subagent có thể chép nhầm block). Mục không khớp thì ghi rõ khi trình bày, không tự bỏ.
    Với mỗi mục "Lỗi ở bản gốc", tự kiểm tra trước khi đề xuất sửa `workspace/cleaned/`: xem ngữ cảnh bằng `text --from N --to M`, và chữ bị nghi sai có thể là tên đúng trên giao diện phần mềm hay thuật ngữ đúng không (VD giao diện Blender tiếng Trung gọi X-Ray là 透视, nên 透视模式 không phải lỗi ASR). Subagent chỉ đoán từ bản dịch nên dễ báo nhầm ở phần này. Khi trình bày, chia rõ mục nào bạn đồng ý sửa, mục nào nên giữ nguyên (kèm lý do).
 5. **Trình bày** trong chat, giữ nguyên format từng mục của subagent để người dùng chọn theo ID:
    - Số lỗi theo mức độ; review nhiều file thì một bảng, mỗi file một dòng.

@@ -16,9 +16,15 @@ Lệnh:
                                         dòng "ID | =" nghĩa là giữ nguyên chữ của block đó trong SRC
   diff     SRC DST [--limit 50] [--loose]         Liệt kê các block có nội dung thay đổi
   validate SRC DST [--target vi|en]     Kiểm tra cấu trúc DST so với SRC
-  pair     SRC DST [--from N] [--to M]  In song song "ID | gốc | dịch" để đối chiếu (dừng nếu lệch số block)
-  check-glossary SRC DST --target vi|en [--glossary workspace/glossary.md]
+  pair     SRC DST [--from N] [--to M] [--ids 57,63,120-125]
+                                        In song song "ID | gốc | dịch" để đối chiếu (dừng nếu lệch số block)
+  check-glossary SRC DST --target vi|en [--glossary workspace/glossary.md] [--from N] [--to M]
                                         Báo block có thuật ngữ ✅ trong glossary mà bản dịch không dùng
+  lint     SRC DST [--from N] [--to M] [--cps 20]
+                                        Báo chỗ nghi lỗi máy phát hiện được: số, tổ hợp phím, chuột trái/phải,
+                                        chữ Latin trong gốc (tên phần mềm, menu) bị mất, đọc quá nhanh
+  review-prep SRC DST --target vi|en [--from N] [--to M] [--cps 20] [--size 100]
+                                        validate + check-glossary + lint trong một lần, kèm các lệnh pair cần đọc
   check-asr FILE [FILE ...] [--glossary workspace/glossary.md]
                                         Báo chỗ còn sót lỗi ASR ✅ (mục 6 glossary) trong file đã clean
   find     PATTERN FILE [FILE ...] [--regex]
@@ -29,7 +35,7 @@ Lệnh:
 
 validate trả về mã thoát 1 nếu có LỖI (sai số block, ID, timestamp, block rỗng).
 CẢNH BÁO (sót chữ gốc, ký hiệu Markdown...) không làm hỏng lệnh nhưng cần xem lại.
-check-glossary và check-asr chỉ cảnh báo, mã thoát 0 trừ khi không đọc được file
+check-glossary, check-asr và lint chỉ cảnh báo, mã thoát 0 trừ khi không đọc được file
 hoặc hai file lệch số block.
 """
 import argparse
@@ -39,6 +45,7 @@ import re
 import shutil
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 WS = Path("workspace")
@@ -366,15 +373,29 @@ def aligned_blocks(src_path, dst_path):
     return src, dst
 
 
+def parse_ids(spec):
+    """"57,63,120-125" -> tập ID dạng chuỗi."""
+    ids = set()
+    for part in re.split(r"[,\s]+", spec.strip()):
+        m = re.fullmatch(r"(\d+)(?:-(\d+))?", part)
+        if not m:
+            sys.exit(f"[LỖI] --ids sai dạng: {part!r} (VD 57,63,120-125)")
+        lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
+        ids.update(str(i) for i in range(lo, hi + 1))
+    return ids
+
+
 def cmd_pair(a):
     pair = aligned_blocks(a.src, a.dst)
     if pair is None:
         return 1
+    ids = parse_ids(a.ids) if a.ids else None
     for s, d in zip(*pair):
-        if a.start and s.pos < a.start:
+        if ids is not None:
+            if s.idx not in ids:
+                continue
+        elif not in_range(s, a.start, a.end):
             continue
-        if a.end and s.pos > a.end:
-            break
         st = " / ".join(t.strip() for t in s.text)
         dt = " / ".join(t.strip() for t in d.text)
         idx = s.idx if s.idx == d.idx else f"{s.idx}≠{d.idx}"
@@ -391,9 +412,10 @@ def table_cells(line):
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-def load_approved_rows(path, src_col, dst_col):
+def load_approved_rows(path, src_col, dst_col, approved_only=True):
     """Trả về danh sách (ô nguồn, [cách viết nguồn], [cách viết đích]) của các dòng ✅
-    trong mọi bảng glossary có đủ cột src_col, dst_col và Trạng thái."""
+    (hoặc mọi dòng nếu approved_only=False) trong mọi bảng glossary có đủ cột
+    src_col, dst_col và Trạng thái."""
     try:
         content = Path(path).read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as e:
@@ -413,7 +435,7 @@ def load_approved_rows(path, src_col, dst_col):
         if not {src_col, dst_col, "Trạng thái"} <= set(header):
             continue
         row = dict(zip(header, cells))
-        if "✅" not in row.get("Trạng thái", ""):
+        if approved_only and "✅" not in row.get("Trạng thái", ""):
             continue
         src_opts = split_options(row[src_col])
         dst_opts = split_options(row[dst_col])
@@ -422,21 +444,30 @@ def load_approved_rows(path, src_col, dst_col):
     return terms
 
 
-def cmd_check_glossary(a):
-    col_target = {"vi": "Tiếng Việt", "en": "English"}[a.target]
-    terms = load_approved_rows(a.glossary, "Gốc", col_target)
+def joined(block):
+    return " / ".join(t.strip() for t in block.text)
+
+
+def in_range(block, start, end):
+    return (not start or block.pos >= start) and (not end or block.pos <= end)
+
+
+def glossary_report(src, dst, glossary, target, start=0, end=0):
+    """In vi phạm glossary ✅ của các block trong khoảng [start, end]."""
+    col_target = {"vi": "Tiếng Việt", "en": "English"}[target]
+    terms = load_approved_rows(glossary, "Gốc", col_target)
     if not terms:
         print(f"Không có dòng ✅ nào có cả ô Gốc và ô {col_target} "
-              f"trong {a.glossary}, không có gì để kiểm tra.")
-        return 0
-    pair = aligned_blocks(a.src, a.dst)
-    if pair is None:
-        return 1
+              f"trong {glossary}, không có gì để kiểm tra.")
+        return
     rules = [(cell, term_regex(src_opts), dst_opts, term_regex(dst_opts))
              for cell, src_opts, dst_opts in terms]
-    counts = {}
-    for s, d in zip(*pair):
-        st, dt = " / ".join(t.strip() for t in s.text), " / ".join(t.strip() for t in d.text)
+    counts, checked = {}, 0
+    for s, d in zip(src, dst):
+        if not in_range(s, start, end):
+            continue
+        checked += 1
+        st, dt = joined(s), joined(d)
         for cell, src_re, dst_opts, dst_re in rules:
             hit = src_re.search(st)
             if hit is None or dst_re.search(dt):
@@ -445,9 +476,167 @@ def cmd_check_glossary(a):
             print(f"ID {s.idx}: '{hit.group(0)}' nên dịch là '{' / '.join(dst_opts)}' "
                   f"| gốc: {st} | dịch: {dt}")
     total = sum(counts.values())
-    print(f"\nĐã kiểm tra {len(terms)} thuật ngữ ✅ trên {len(pair[0])} block: {total} vi phạm")
+    print(f"\nĐã kiểm tra {len(terms)} thuật ngữ ✅ trên {checked} block: {total} vi phạm")
     for cell, n in sorted(counts.items(), key=lambda kv: -kv[1]):
         print(f"  {cell}: {n}")
+
+
+def cmd_check_glossary(a):
+    pair = aligned_blocks(a.src, a.dst)
+    if pair is None:
+        return 1
+    glossary_report(*pair, a.glossary, a.target, a.start, a.end)
+    return 0
+
+
+# ---- lint: lỗi máy phát hiện được (số, phím, chuột, thuật ngữ Latin, tốc độ đọc) ----
+
+NUM_RE = re.compile(r"\d+")
+KEY_NAME = (r"(?:ctrl|control|shift|alt|cmd|command|option|win|tab|enter|return|esc|space|"
+            r"delete|del|backspace|home|end|f\d{1,2}|[a-z0-9])")
+COMBO_RE = re.compile(rf"(?<![a-z])(?:{_MOD}\s*(?:\+|＋|加|plus|cộng)\s*)+{KEY_NAME}(?![a-z])", re.I)
+COMBO_SEP_RE = re.compile(r"\s*(?:\+|＋|加|plus|cộng)\s*", re.I)
+# Tên phím viết bằng chữ Hán -> cách viết chấp nhận trong bản dịch
+CJK_KEYS = [
+    (re.compile(r"空格键"), re.compile(r"space|phím cách|dấu cách", re.I), "Space"),
+    (re.compile(r"回车"), re.compile(r"enter|return", re.I), "Enter"),
+    (re.compile(r"退格键"), re.compile(r"backspace", re.I), "Backspace"),
+    (re.compile(r"删除键"), re.compile(r"delete|del\b", re.I), "Delete"),
+]
+MOUSE = [
+    (re.compile(r"左键|左击|鼠标左|left[- ]?click|left mouse", re.I),
+     re.compile(r"trái|left", re.I), "chuột trái"),
+    (re.compile(r"右键|右击|鼠标右|right[- ]?click|right mouse", re.I),
+     re.compile(r"phải|right", re.I), "chuột phải"),
+    (re.compile(r"中键|middle[- ]?(?:click|mouse)", re.I),
+     re.compile(r"giữa|cuộn|middle|wheel|scroll", re.I), "chuột giữa"),
+]
+LATIN_TERM_RE = re.compile(r"[A-Za-zÀ-ɏḀ-ỿ]" + rf"[{LATIN}+#]*(?:[.\-][{LATIN}+#]+)*")
+LATIN_SKIP = {"ok"}
+
+
+def norm_text(s):
+    return unicodedata.normalize("NFKC", s)
+
+
+def numbers(s):
+    """Các cụm chữ số trong chuỗi, tách riêng từng cụm để 1.5 = 1,5 và 0,0,0 = 0, 0, 0."""
+    return set(NUM_RE.findall(norm_text(s)))
+
+
+def combos(s):
+    return {COMBO_SEP_RE.sub("+", c).lower() for c in COMBO_RE.findall(norm_text(s))}
+
+
+def has_word(word, text):
+    return re.search(rf"(?<![{LATIN}]){re.escape(word)}(?![{LATIN}])", text, re.I) is not None
+
+
+def timing_seconds(timing):
+    m = TIMING_RE.match(timing)
+    if not m:
+        return None
+
+    def sec(t):
+        h, mi, s = t.replace(",", ".").split(":")
+        return int(h) * 3600 + int(mi) * 60 + float(s)
+    return sec(m.group(2)) - sec(m.group(1))
+
+
+def glossary_source_terms(path):
+    """Mọi cách viết ở cột Gốc của glossary (cả ✅ lẫn ❓), viết thường."""
+    if not Path(path).exists():
+        return set()
+    rows = load_approved_rows(path, "Gốc", "Gốc", approved_only=False)
+    return {o.lower() for _, opts, _ in rows for o in opts}
+
+
+def lint_issues(src, dst, start=0, end=0, cps=20.0, glossary=None):
+    """Trả về danh sách (block gốc, block dịch, loại, mô tả). Chữ cần có trong bản dịch
+    được tìm ở cả block liền trước và liền sau, vì câu dịch hay bị dồn sang block bên cạnh."""
+    skip_terms = glossary_source_terms(glossary) if glossary else set()
+    issues = []
+    for i, (s, d) in enumerate(zip(src, dst)):
+        if not in_range(s, start, end):
+            continue
+        st = joined(s)
+        near = " / ".join(joined(x) for x in dst[max(i - 1, 0):i + 2])
+        near_norm = norm_text(near)
+
+        missing = sorted(numbers(st) - numbers(near), key=lambda n: (len(n), n))
+        if missing:
+            issues.append((s, d, "Số", f"gốc có {', '.join(missing)}, bản dịch không có"))
+
+        near_combos = combos(near)
+        for c in sorted(combos(st)):
+            if c not in near_combos:
+                issues.append((s, d, "Phím", f"gốc có {c}, bản dịch không có tổ hợp này"))
+        for src_re, dst_re, name in CJK_KEYS:
+            if src_re.search(st) and not dst_re.search(near):
+                issues.append((s, d, "Phím", f"gốc nói phím {name}, bản dịch không có"))
+
+        for src_re, dst_re, name in MOUSE:
+            if src_re.search(st) and not dst_re.search(near):
+                issues.append((s, d, "Chuột", f"gốc nói {name}, bản dịch không có"))
+
+        # Chữ Latin xen trong gốc chủ yếu là Hán/Nhật/Hàn thường là tên phần mềm, menu, định dạng
+        words = LATIN_TERM_RE.findall(COMBO_RE.sub(" ", norm_text(st)))  # tổ hợp phím đã xét ở trên
+        if len(CJK_RE.findall(st)) >= len(words):
+            lost = []
+            for w in words:
+                if (len(w) >= 2 and w.isascii() and w.lower() not in LATIN_SKIP and w.lower() not in skip_terms
+                        and not has_word(w, near_norm) and w not in lost):
+                    lost.append(w)
+            if lost:
+                issues.append((s, d, "Thuật ngữ Latin", f"gốc có {', '.join(lost)}, bản dịch không giữ"))
+
+        dur = timing_seconds(s.timing)
+        if cps and dur and dur > 0:
+            rate = len(" ".join(t.strip() for t in d.text)) / dur
+            if rate > cps:
+                issues.append((s, d, "Đọc nhanh", f"{rate:.0f} ký tự/giây trong {dur:.1f} giây"))
+    return issues
+
+
+def lint_report(src, dst, start=0, end=0, cps=20.0, glossary=None):
+    issues = lint_issues(src, dst, start, end, cps, glossary)
+    counts = {}
+    for s, d, kind, msg in issues:
+        counts[kind] = counts.get(kind, 0) + 1
+        print(f"ID {s.idx} | {kind} | {msg} | gốc: {joined(s)} | dịch: {joined(d)}")
+    print(f"\nLint: {len(issues)} chỗ cần xem"
+          + (" (" + ", ".join(f"{k} {n}" for k, n in counts.items()) + ")" if counts else ""))
+    if issues:
+        print("Máy chỉ so khớp chữ: mỗi dòng là chỗ nghi ngờ, cần đọc ngữ cảnh mới kết luận là lỗi.")
+
+
+def cmd_lint(a):
+    pair = aligned_blocks(a.src, a.dst)
+    if pair is None:
+        return 1
+    lint_report(*pair, a.start, a.end, a.cps, a.glossary)
+    return 0
+
+
+def cmd_review_prep(a):
+    """validate + check-glossary + lint trong một lần gọi, rồi in các lệnh pair cần đọc."""
+    print("## Validate")
+    if cmd_validate(a) and len(read_srt(a.src)[0]) != len(read_srt(a.dst)[0]):
+        print("\nLệch số block: không đối chiếu được, dừng.")
+        return 1
+    src, dst = read_srt(a.src)[0], read_srt(a.dst)[0]
+    print("\n## Glossary")
+    if Path(a.glossary).exists():
+        glossary_report(src, dst, a.glossary, a.target, a.start, a.end)
+    else:
+        print(f"Không có {a.glossary}, bỏ qua.")
+    print("\n## Lint")
+    lint_report(src, dst, a.start, a.end, a.cps, a.glossary)
+    first, last = a.start or 1, min(a.end or len(src), len(src))
+    print("\n## Đọc đối chiếu")
+    for n in range(first, last + 1, a.size):
+        print(f"python tools/srt_tools.py pair {Path(a.src).as_posix()} {Path(a.dst).as_posix()} "
+              f"--from {n} --to {min(n + a.size - 1, last)}")
     return 0
 
 
@@ -670,12 +859,27 @@ def main():
     s = sub.add_parser("pair"); s.add_argument("src"); s.add_argument("dst")
     s.add_argument("--from", dest="start", type=int, default=0, help="block thứ N (từ 1)")
     s.add_argument("--to", dest="end", type=int, default=0, help="đến block thứ M")
+    s.add_argument("--ids", help="chỉ in các ID này, VD 57,63,120-125 (bỏ qua --from/--to)")
     s.set_defaults(fn=cmd_pair)
 
     s = sub.add_parser("check-glossary"); s.add_argument("src"); s.add_argument("dst")
     s.add_argument("--target", choices=["vi", "en"], required=True, help="ngôn ngữ của DST")
     s.add_argument("--glossary", default=str(GLOSSARY))
+    s.add_argument("--from", dest="start", type=int, default=0, help="block thứ N (từ 1)")
+    s.add_argument("--to", dest="end", type=int, default=0, help="đến block thứ M")
     s.set_defaults(fn=cmd_check_glossary)
+
+    for name, fn in (("lint", cmd_lint), ("review-prep", cmd_review_prep)):
+        s = sub.add_parser(name); s.add_argument("src"); s.add_argument("dst")
+        s.add_argument("--target", choices=["vi", "en"], required=name == "review-prep", help="ngôn ngữ của DST")
+        s.add_argument("--glossary", default=str(GLOSSARY))
+        s.add_argument("--from", dest="start", type=int, default=0, help="block thứ N (từ 1)")
+        s.add_argument("--to", dest="end", type=int, default=0, help="đến block thứ M")
+        s.add_argument("--cps", type=float, default=20.0,
+                       help="ngưỡng tốc độ đọc, ký tự/giây (mặc định 20, 0 = tắt)")
+        if name == "review-prep":
+            s.add_argument("--size", type=int, default=100, help="số block mỗi lệnh pair gợi ý")
+        s.set_defaults(fn=fn)
 
     s = sub.add_parser("find"); s.add_argument("pattern"); s.add_argument("files", nargs="+")
     s.add_argument("--regex", action="store_true", help="coi PATTERN là biểu thức chính quy")

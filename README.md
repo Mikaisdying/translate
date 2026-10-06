@@ -88,7 +88,10 @@ python tools/srt_tools.py diff  workspace/raw/ep01.srt workspace/cleaned/ep01.sr
 python tools/srt_tools.py validate workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --target vi
 python tools/srt_tools.py merge workspace/cleaned/ep01.srt workspace/work/ep01/vi workspace/trans/ep01.vi.srt
 python tools/srt_tools.py pair  workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --from 1 --to 100
+python tools/srt_tools.py pair  workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --ids 57,63,120-125
 python tools/srt_tools.py check-glossary workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --target vi
+python tools/srt_tools.py lint  workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt
+python tools/srt_tools.py review-prep workspace/cleaned/ep01.srt workspace/trans/ep01.vi.srt --target vi
 python tools/srt_tools.py find "图层" workspace/cleaned/*.srt
 python tools/srt_tools.py find "lớp|layer" workspace/trans/*.vi.srt --regex
 python tools/srt_tools.py check-asr workspace/cleaned/*.srt
@@ -99,9 +102,11 @@ python tools/srt_tools.py status
 
 `validate` là chốt chặn quan trọng nhất: sai số block, ID hay timestamp là FAIL. Bạn cũng có thể tự chạy để kiểm tra bản dịch từ bất kỳ nguồn nào.
 
-- `pair` in song song "ID | gốc | dịch" để đối chiếu; dừng với lỗi nếu hai file lệch số block.
+- `pair` in song song "ID | gốc | dịch" để đối chiếu; dừng với lỗi nếu hai file lệch số block. `--ids 57,63,120-125` chỉ in đúng các ID đó.
 - `check-glossary` đọc các dòng ✅ trong `workspace/glossary.md` (cột Gốc + cột Tiếng Việt/English, nhận theo tên cột) và báo block có thuật ngữ gốc mà bản dịch không dùng cách dịch đã duyệt. Chỉ là cảnh báo; dòng ❓ không bị kiểm tra.
   Thuật ngữ chữ Latin khớp trọn từ ("art" không khớp "start"); chữ Hán khớp chuỗi con.
+- `lint` báo chỗ nghi lỗi mà máy so được: số trong gốc không có trong bản dịch, tổ hợp phím hoặc tên phím (空格键, 回车...) khác gốc, chuột trái/phải/giữa bị mất, chữ Latin trong gốc tiếng Trung (tên phần mềm, menu, định dạng) bị mất, block đọc quá nhanh (`--cps`, mặc định 20 ký tự/giây, 0 để tắt). Chữ cần tìm được xét cả ở block liền trước và sau, vì câu dịch hay dồn sang block bên cạnh. Chỉ là chỗ nghi ngờ, cần đọc ngữ cảnh.
+- `review-prep` chạy validate, check-glossary, lint trong một lần và in các lệnh `pair` cần đọc; subagent review dùng lệnh này để bớt số lượt gọi. `--from/--to` giới hạn trong một khoảng block (khi file dài được chia cho nhiều subagent).
 - `find` tìm trong phần chữ của nhiều file (không phân biệt hoa thường), dùng cho review chéo bài.
 - `check-asr` báo chỗ trong `workspace/cleaned/` còn sót lỗi ASR ✅ ở mục 6 glossary.
 - `merge` ghép chữ dạng `ID | chữ` vào đúng ID, timestamp của file gốc, nên agent không phải chép lại timestamp. Nhận một file hoặc cả thư mục `part_*.txt`; thiếu, thừa, trùng ID hay block rỗng thì từ chối. `--cleanup` xóa thư mục phần sau khi ghép.

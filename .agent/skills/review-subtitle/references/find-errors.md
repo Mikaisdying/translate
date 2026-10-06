@@ -12,15 +12,20 @@ Review chỉ có giá trị khi người dùng tin được nó: mỗi lỗi bá
 
 ## Quy trình
 
-1. **Kiểm tra cấu trúc**: `validate <gốc> <dịch> --target <mã>`. Lỗi cấu trúc (sai ID, timestamp, số block) là lỗi nghiêm trọng. Lệch số block thì `pair` không chạy được: trả về lỗi đó và dừng.
-2. **Glossary bằng máy**: `check-glossary <gốc> <dịch> --target <mã>`. Lệnh chỉ so khớp chuỗi nên có thể báo nhầm (thuật ngữ được diễn đạt khác mà vẫn đúng ý glossary): xem ngữ cảnh rồi mới đưa vào, mức trung bình.
-3. **Đọc quy tắc**: `workspace/glossary.md` và `.agent/skills/translate-subtitle/references/target-<mã>.md`. Dòng ✅ là bắt buộc; lệch dòng ❓ không phải lỗi. Có `workspace/work/<tên>/notes.<mã>.md` thì đọc để hiểu các quyết định của người dịch; đó không phải luật: quyết định nhất quán và hợp lý thì không báo, quyết định làm sai nghĩa thì vẫn báo.
-4. **Đọc đối chiếu**: `pair <gốc> <dịch> --from 1 --to 100`, rồi 101-200, cứ thế đến hết (hoặc trong phạm vi được giao). Một câu có thể trải qua nhiều block: đánh giá theo cả câu, không theo từng mảnh.
-5. **Phân loại**:
+1. **Kiểm tra bằng máy, một lệnh**: `review-prep <gốc> <dịch> --target <mã>` (phạm vi là một khoảng block thì thêm `--from N --to M`). Lệnh in bốn phần:
+   - `## Validate`: lỗi cấu trúc (sai ID, timestamp, số block) là lỗi nghiêm trọng. Lệch số block thì lệnh dừng ở đây: trả về lỗi đó và dừng.
+   - `## Glossary`: block có thuật ngữ ✅ mà bản dịch không dùng cách đã duyệt.
+   - `## Lint`: chỗ nghi lỗi máy so được: `Số` (số trong gốc không có trong bản dịch), `Phím` (tổ hợp phím, tên phím khác gốc), `Chuột` (gốc nói chuột trái/phải/giữa mà bản dịch không có), `Thuật ngữ Latin` (tên phần mềm, menu, định dạng trong gốc bị mất), `Đọc nhanh` (quá nhiều ký tự mỗi giây).
+   - `## Đọc đối chiếu`: các lệnh `pair` cần chạy ở bước 3.
+
+   Máy chỉ so khớp chữ nên Glossary và Lint đều có thể báo nhầm (thuật ngữ diễn đạt khác mà vẫn đúng ý, số viết bằng chữ, câu dồn sang block khác). Mỗi dòng là một chỗ phải xem ngữ cảnh khi đọc đến nó ở bước 3, không phải lỗi có sẵn. Xác nhận đúng là lỗi thì xếp mức: sai số, sai phím, sai chuột là nghiêm trọng; glossary, thuật ngữ Latin bị mất là trung bình; đọc nhanh là nhẹ, chỉ báo khi rút gọn được mà không mất ý.
+2. **Đọc quy tắc**: `workspace/glossary.md` và `.agent/skills/translate-subtitle/references/target-<mã>.md`. Dòng ✅ là bắt buộc; lệch dòng ❓ không phải lỗi. Có `workspace/work/<tên>/notes.<mã>.md` thì đọc để hiểu các quyết định của người dịch; đó không phải luật: quyết định nhất quán và hợp lý thì không báo, quyết định làm sai nghĩa thì vẫn báo.
+3. **Đọc đối chiếu**: chạy lần lượt các lệnh `pair` mà `review-prep` in ra (mỗi lệnh 100 block). Một câu có thể trải qua nhiều block: đánh giá theo cả câu, không theo từng mảnh. Phạm vi là một khoảng block không bắt đầu từ 1 thì đọc thêm khoảng 5 block ngay trước khoảng đó để nắm ngữ cảnh, nhưng chỉ báo lỗi của block nằm trong phạm vi.
+4. **Phân loại**:
    - **Nghiêm trọng**: dịch sai nghĩa; bỏ sót ý; sai hướng dẫn thao tác (sai phím, sai chuột trái/phải, sai tên menu, sai con số, sai thứ tự bước). Với video hướng dẫn, lỗi thao tác là nặng nhất vì người học làm theo sẽ làm sai.
    - **Trung bình**: vi phạm glossary; thuật ngữ hoặc tên không nhất quán trong file; xưng hô lệch; phím tắt sai định dạng; còn sót chữ gốc.
    - **Nhẹ**: câu đọc gượng, dịch word-by-word, quá dài khó đọc kịp.
-6. **Chỉ báo lỗi thật**. Không báo chỗ chỉ khác sở thích văn phong mà bản dịch vẫn đúng và tự nhiên. Tự hỏi "nếu là người dùng, tôi có muốn sửa chỗ này không?". Không chắc là lỗi thì vẫn ghi nhưng đánh dấu "cần xác nhận". Thấy lỗi ở chính bản gốc (ASR nghe sai mà clean bỏ sót) thì ghi ở mục riêng cuối câu trả lời, không tính vào lỗi dịch.
+5. **Chỉ báo lỗi thật**. Không báo chỗ chỉ khác sở thích văn phong mà bản dịch vẫn đúng và tự nhiên. Tự hỏi "nếu là người dùng, tôi có muốn sửa chỗ này không?". Không chắc là lỗi thì vẫn ghi nhưng đánh dấu "cần xác nhận". Thấy lỗi ở chính bản gốc (ASR nghe sai mà clean bỏ sót) thì ghi ở mục riêng cuối câu trả lời, không tính vào lỗi dịch.
 
 ## Câu trả lời
 
@@ -30,7 +35,7 @@ Toàn bộ kết quả nằm trong câu trả lời, theo đúng format dưới 
 # Review <tên>.<mã>.srt
 
 - Bản gốc: workspace/cleaned/<tên>.srt
-- Phạm vi: toàn bộ | ID ...
+- Phạm vi: toàn bộ | block N-M
 - Tổng: N nghiêm trọng, N trung bình, N nhẹ
 - Validate: PASS | FAIL (...)
 ```
