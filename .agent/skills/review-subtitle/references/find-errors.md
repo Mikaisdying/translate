@@ -21,13 +21,14 @@ A review is only useful if the user can trust it: every false positive wastes th
    - `## Đọc đối chiếu`: the `pair` commands to run in step 3.
 
    The machine only matches strings, so Glossary and Lint can misfire (term phrased differently but correct, numbers written as words, sentence moved to another block). Each line is a spot to check in context when you reach it in step 3, not a confirmed error. If confirmed, severity: wrong number, key or mouse button is serious; glossary and lost Latin term are medium; reading speed is minor, report only if it can be shortened without losing meaning.
+
 2. **Read the rules**: `workspace/glossary.md` and `.agent/skills/translate-subtitle/references/target-<code>.md`. `x` rows are mandatory; deviating from `?` rows is not an error. If `workspace/work/<name>/notes.<code>.md` exists, read it to understand the translator's decisions; it's not law: consistent, reasonable decisions aren't reported, decisions that break meaning still are.
 3. **Side-by-side reading**: run the `pair` commands printed by `review-prep` in order (100 blocks each). A sentence may span blocks: judge the whole sentence, not fragments. If the scope is a range not starting at 1, also read ~5 blocks just before it for context, but only report blocks within scope.
 4. **Classify**:
    - **Nghiêm trọng** (serious): wrong meaning; omitted meaning; wrong instructions (wrong key, left/right mouse, menu name, number, step order). In tutorials, instruction errors are worst because learners will do it wrong.
    - **Trung bình** (medium): glossary violation; inconsistent term or name within the file; address slip; badly formatted shortcut; leftover source text.
    - **Nhẹ** (minor): awkward, word-by-word, too long to read in time.
-5. **Report only real errors**. Not mere style preferences where the translation is correct and natural. Ask: "as the user, would I want this fixed?". Unsure it's an error → still list it but mark `unsure`. Errors in the source itself (ASR mishearing missed by clean) go in a separate section at the end, not counted as translation errors.
+5. **Report only real errors**. Not mere style preferences when the translation is correct and natural. Ask: "as the user, would I want this fixed?". If unsure, report it as `unsure`. For source/ASR errors, report only when they cause a translation error (e.g. literal mistranslation); if the translation preserves the correct meaning, skip it. Put source/ASR errors in a separate section at the end; do not count them as translation errors.
 
 ## Result file
 
@@ -53,12 +54,12 @@ Then errors, serious first, then medium, minor; within each level by ID. One ent
 ```
 
 - Heading: `### ID | Mức độ | Loại | Trạng thái`. Status is always `pending`, or `unsure` when you are not sure; the main agent later changes it to `fixed` or `skipped`.
-- `Gốc`, `Hiện tại`: copy the block text exactly from the real file. `Đề xuất` is the complete block content after fixing (multi-line joined with ` / `), usable directly without re-guessing intent.
+- `Gốc`, `Hiện tại`: copy the block text exactly from the real file. `Đề xuất` is the complete block content after fixing (multi-line joined with `/`), usable directly without re-guessing intent.
 - An error spanning blocks: `### ID 45-46 | ...` with an `Đề xuất` per ID.
 
 At the end, if any:
 
-- `## Lỗi ở bản gốc`: ID, suspect word, likely correct word.
+- `## Lỗi ở bản gốc`: only source errors the translation still carries. ID, suspect word, likely correct word.
 - `## Đề xuất glossary`: terms translated several ways, names missing from the glossary. One per line: `- <gốc> → <cách dịch đề xuất> (<mục: nhân vật | xưng hô | thuật ngữ>): <lý do, VD ID dùng mỗi cách>`. Don't propose terms that already have an `x` row with the same translation.
 
 No errors: the file has only the header with all zeros and the validate result.
