@@ -6,7 +6,7 @@ Pipeline: FunASR → `workspace/raw/` → clean → `workspace/cleaned/` → d�
 - `workspace/cleaned/`: bản gốc đã sửa lỗi, là nguồn chuẩn để dịch. Bước dịch không được sửa thư mục này.
 - `workspace/trans/`: bản dịch, đặt tên `<tên>.<mã ngôn ngữ>.srt` (VD `ep01.vi.srt`).
 - `workspace/work/`: file tạm, xóa được. Bản cũ khi làm lại nằm ở `workspace/work/<tên>/backup/`.
-- `workspace/glossary.md`: tên, xưng hô, thuật ngữ. Dòng ✅ bắt buộc tuân theo.
+- `workspace/glossary.md`: tên, xưng hô, thuật ngữ. Dòng `x` bắt buộc tuân theo.
 
 Clean và dịch là hai bước riêng: skill `clean-funasr` và `translate-subtitle`. Glossary: skill `build-glossary`. Review bản dịch: skill `review-subtitle`.
 

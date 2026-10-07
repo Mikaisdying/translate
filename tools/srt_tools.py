@@ -19,14 +19,14 @@ Lệnh:
   pair     SRC DST [--from N] [--to M] [--ids 57,63,120-125]
                                         In song song "ID | gốc | dịch" để đối chiếu (dừng nếu lệch số block)
   check-glossary SRC DST --target vi|en [--glossary workspace/glossary.md] [--from N] [--to M]
-                                        Báo block có thuật ngữ ✅ trong glossary mà bản dịch không dùng
+                                        Báo block có thuật ngữ `x` trong glossary mà bản dịch không dùng
   lint     SRC DST [--from N] [--to M] [--cps 20]
                                         Báo chỗ nghi lỗi máy phát hiện được: số, tổ hợp phím, chuột trái/phải,
                                         chữ Latin trong gốc (tên phần mềm, menu) bị mất, đọc quá nhanh
   review-prep SRC DST --target vi|en [--from N] [--to M] [--cps 20] [--size 100]
                                         validate + check-glossary + lint trong một lần, kèm các lệnh pair cần đọc
   check-asr FILE [FILE ...] [--glossary workspace/glossary.md]
-                                        Báo chỗ còn sót lỗi ASR ✅ (mục 6 glossary) trong file đã clean
+                                        Báo chỗ còn sót lỗi ASR `x` (mục 5 glossary) trong file đã clean
   find     PATTERN FILE [FILE ...] [--regex]
                                         Tìm chuỗi trong phần chữ của nhiều file SRT (không phân biệt hoa thường)
   archive  PATH [PATH ...] [--copy]     Cất file/thư mục vào workspace/work/<tên>/backup/ kèm thời gian
@@ -413,7 +413,7 @@ def table_cells(line):
 
 
 def load_approved_rows(path, src_col, dst_col, approved_only=True):
-    """Trả về danh sách (ô nguồn, [cách viết nguồn], [cách viết đích]) của các dòng ✅
+    """Trả về danh sách (ô nguồn, [cách viết nguồn], [cách viết đích]) của các dòng `x`
     (hoặc mọi dòng nếu approved_only=False) trong mọi bảng glossary có đủ cột
     src_col, dst_col và Trạng thái."""
     try:
@@ -435,7 +435,7 @@ def load_approved_rows(path, src_col, dst_col, approved_only=True):
         if not {src_col, dst_col, "Trạng thái"} <= set(header):
             continue
         row = dict(zip(header, cells))
-        if approved_only and "✅" not in row.get("Trạng thái", ""):
+        if approved_only and row.get("Trạng thái", "").strip().lower() != "x":
             continue
         src_opts = split_options(row[src_col])
         dst_opts = split_options(row[dst_col])
@@ -453,11 +453,11 @@ def in_range(block, start, end):
 
 
 def glossary_report(src, dst, glossary, target, start=0, end=0):
-    """In vi phạm glossary ✅ của các block trong khoảng [start, end]."""
+    """In vi phạm glossary `x` của các block trong khoảng [start, end]."""
     col_target = {"vi": "Tiếng Việt", "en": "English"}[target]
     terms = load_approved_rows(glossary, "Gốc", col_target)
     if not terms:
-        print(f"Không có dòng ✅ nào có cả ô Gốc và ô {col_target} "
+        print(f"Không có dòng `x` nào có cả ô Gốc và ô {col_target} "
               f"trong {glossary}, không có gì để kiểm tra.")
         return
     rules = [(cell, term_regex(src_opts), dst_opts, term_regex(dst_opts))
@@ -476,7 +476,7 @@ def glossary_report(src, dst, glossary, target, start=0, end=0):
             print(f"ID {s.idx}: '{hit.group(0)}' nên dịch là '{' / '.join(dst_opts)}' "
                   f"| gốc: {st} | dịch: {dt}")
     total = sum(counts.values())
-    print(f"\nĐã kiểm tra {len(terms)} thuật ngữ ✅ trên {checked} block: {total} vi phạm")
+    print(f"\nĐã kiểm tra {len(terms)} thuật ngữ `x` trên {checked} block: {total} vi phạm")
     for cell, n in sorted(counts.items(), key=lambda kv: -kv[1]):
         print(f"  {cell}: {n}")
 
@@ -544,7 +544,7 @@ def timing_seconds(timing):
 
 
 def glossary_source_terms(path):
-    """Mọi cách viết ở cột Gốc của glossary (cả ✅ lẫn ❓), viết thường."""
+    """Mọi cách viết ở cột Gốc của glossary (cả `x` lẫn `?`), viết thường."""
     if not Path(path).exists():
         return set()
     rows = load_approved_rows(path, "Gốc", "Gốc", approved_only=False)
@@ -663,7 +663,7 @@ def cmd_find(a):
 def cmd_check_asr(a):
     terms = load_approved_rows(a.glossary, "ASR nghe sai", "Đúng là")
     if not terms:
-        print(f"Không có dòng ✅ nào ở mục Lỗi ASR trong {a.glossary}, không có gì để kiểm tra.")
+        print(f"Không có dòng `x` nào ở mục Lỗi ASR trong {a.glossary}, không có gì để kiểm tra.")
         return 0
     rules = [(term_regex(wrong), term_regex(right), right) for _, wrong, right in terms]
     files = expand_files(a.files)
@@ -679,7 +679,7 @@ def cmd_check_asr(a):
                     total += 1
                     print(f"{Path(f).name} | {b.idx} | '{hit.group(0)}' nên là "
                           f"'{' / '.join(right)}' | {text}")
-    print(f"\nĐã kiểm tra {len(terms)} lỗi ASR ✅ trong {len(files)} file: {total} chỗ còn sót")
+    print(f"\nĐã kiểm tra {len(terms)} lỗi ASR `x` trong {len(files)} file: {total} chỗ còn sót")
     return 0
 
 

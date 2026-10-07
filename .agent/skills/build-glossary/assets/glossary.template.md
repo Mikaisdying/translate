@@ -5,7 +5,7 @@ File này dùng chung cho cả clean và dịch. Để trống được; điền
 Có thể nhờ agent điền nháp bằng skill build-glossary (/glossary), sau đó bạn duyệt lại.
 Đây là file mẫu; bản dùng thật là workspace/glossary.md (tool tự chép từ mẫu này khi chưa có).
 
-Trạng thái: ✅ đã duyệt (agent phải tuân theo) | ❓ đề xuất (agent tham khảo, chưa chắc)
+Trạng thái: `x` đã duyệt (agent phải tuân theo) | `?` đề xuất (agent tham khảo, chưa chắc)
 Ô để trống = chưa quyết định, agent tự chọn nhưng phải nhất quán trong cả file.
 Tên công cụ, menu, phím tắt cũng đưa vào mục 4; cột Tiếng Việt có thể ghi y nguyên tiếng Anh nếu muốn giữ.
 -->
@@ -35,12 +35,7 @@ Tên công cụ, menu, phím tắt cũng đưa vào mục 4; cột Tiếng Việ
 | Gốc | Tiếng Việt | English | Ghi chú | Trạng thái |
 |-----|------------|---------|---------|------------|
 
-## 5. Câu cửa miệng, cụm lặp lại
-
-| Gốc | Tiếng Việt | English | Ghi chú | Trạng thái |
-|-----|------------|---------|---------|------------|
-
-## 6. Lỗi ASR hay gặp (dùng khi clean)
+## 5. Lỗi ASR hay gặp (dùng khi clean)
 
 | ASR nghe sai | Đúng là | Ghi chú | Trạng thái |
 |--------------|---------|---------|------------|

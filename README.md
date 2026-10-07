@@ -39,7 +39,7 @@ subtitle-kit/
 
 1. Copy cả thư mục này thành dự án mới, bỏ các file `.srt` của FunASR vào `workspace/raw/`.
 2. `/clean` → kiểm tra vài chỗ trong `workspace/cleaned/`.
-3. `/glossary` → duyệt `workspace/glossary.md`, đổi ❓ thành ✅ cho dòng đồng ý.
+3. `/glossary` → duyệt `workspace/glossary.md`, đổi `?` thành `x` cho dòng đồng ý.
 4. `/trans-vi` hoặc `/trans-en`.
 5. `/review` → subagent tìm lỗi, agent trình bày và hỏi bạn muốn sửa gì; trả lời VD "sửa lỗi nghiêm trọng", "sửa ID 57, 60", "ID 61 sửa thành ...". Danh sách lỗi chỉ nằm trong chat, không tạo file.
 
@@ -54,7 +54,7 @@ Lệnh `/review` có ba chế độ: mặc định tìm lỗi rồi hỏi bạn 
 Với khóa học nhiều bài, thuật ngữ và xưng hô phải thống nhất từ bài đầu đến bài cuối, nên đừng dịch cả khóa một lần:
 
 1. `/clean` toàn bộ.
-2. `/glossary` rồi duyệt, đổi ❓ thành ✅.
+2. `/glossary` rồi duyệt, đổi `?` thành `x`.
 3. Dịch thử 2–3 bài đầu.
 4. `/review` các bài đó.
 5. Chỉnh `workspace/glossary.md` theo những gì review phát hiện (thuật ngữ dịch lệch, xưng hô).
@@ -103,12 +103,12 @@ python tools/srt_tools.py status
 `validate` là chốt chặn quan trọng nhất: sai số block, ID hay timestamp là FAIL. Bạn cũng có thể tự chạy để kiểm tra bản dịch từ bất kỳ nguồn nào.
 
 - `pair` in song song "ID | gốc | dịch" để đối chiếu; dừng với lỗi nếu hai file lệch số block. `--ids 57,63,120-125` chỉ in đúng các ID đó.
-- `check-glossary` đọc các dòng ✅ trong `workspace/glossary.md` (cột Gốc + cột Tiếng Việt/English, nhận theo tên cột) và báo block có thuật ngữ gốc mà bản dịch không dùng cách dịch đã duyệt. Chỉ là cảnh báo; dòng ❓ không bị kiểm tra.
+- `check-glossary` đọc các dòng `x` trong `workspace/glossary.md` (cột Gốc + cột Tiếng Việt/English, nhận theo tên cột) và báo block có thuật ngữ gốc mà bản dịch không dùng cách dịch đã duyệt. Chỉ là cảnh báo; dòng `?` không bị kiểm tra.
   Thuật ngữ chữ Latin khớp trọn từ ("art" không khớp "start"); chữ Hán khớp chuỗi con.
 - `lint` báo chỗ nghi lỗi mà máy so được: số trong gốc không có trong bản dịch, tổ hợp phím hoặc tên phím (空格键, 回车...) khác gốc, chuột trái/phải/giữa bị mất, chữ Latin trong gốc tiếng Trung (tên phần mềm, menu, định dạng) bị mất, block đọc quá nhanh (`--cps`, mặc định 20 ký tự/giây, 0 để tắt). Chữ cần tìm được xét cả ở block liền trước và sau, vì câu dịch hay dồn sang block bên cạnh. Chỉ là chỗ nghi ngờ, cần đọc ngữ cảnh.
 - `review-prep` chạy validate, check-glossary, lint trong một lần và in các lệnh `pair` cần đọc; subagent review dùng lệnh này để bớt số lượt gọi. `--from/--to` giới hạn trong một khoảng block (khi file dài được chia cho nhiều subagent).
 - `find` tìm trong phần chữ của nhiều file (không phân biệt hoa thường), dùng cho review chéo bài.
-- `check-asr` báo chỗ trong `workspace/cleaned/` còn sót lỗi ASR ✅ ở mục 6 glossary.
+- `check-asr` báo chỗ trong `workspace/cleaned/` còn sót lỗi ASR `x` ở mục 5 glossary.
 - `merge` ghép chữ dạng `ID | chữ` vào đúng ID, timestamp của file gốc, nên agent không phải chép lại timestamp. Nhận một file hoặc cả thư mục `part_*.txt`; thiếu, thừa, trùng ID hay block rỗng thì từ chối. `--cleanup` xóa thư mục phần sau khi ghép.
 - `parts` liệt kê `part_*.txt` nào (mỗi phần 100 block) đã xong, dở hay chưa làm, phần thừa sót từ lần trước, và in lệnh `text` để đọc phần tiếp theo. Dùng để làm tiếp sau khi bị ngắt.
 - File dài được làm theo từng đoạn `text --from --to`; bước clean ghi `workspace/work/<tên>/summary.md` (do subagent tóm tắt) để bước dịch không phải đọc lại cả bài.
@@ -119,5 +119,5 @@ python tools/srt_tools.py status
 
 - Thêm ngôn ngữ đích: tạo `.agent/skills/translate-subtitle/references/target-<mã>.md`, thêm workflow `trans-<mã>.md`, và thêm mã vào `--target` trong `srt_tools.py` nếu cần kiểm tra riêng.
 - Quy định thuật ngữ kỹ thuật, tên phần mềm, phím tắt nằm ở mục "Thuật ngữ kỹ thuật, phần mềm, phím tắt" trong `target-vi.md` / `target-en.md`; muốn đổi riêng cho một dự án thì ghi vào mục 4 của `workspace/glossary.md`. `validate` sẽ cảnh báo phím tắt viết sai kiểu như "Ctrl cộng R".
-- Lỗi ASR bị lặp lại nhiều: ghi vào mục 6 của glossary, bước clean sẽ tự sửa theo (và `check-asr` bắt chỗ sót).
+- Lỗi ASR bị lặp lại nhiều: ghi vào mục 5 của glossary, bước clean sẽ tự sửa theo (và `check-asr` bắt chỗ sót).
 - Sửa `srt_tools.py` xong thì chạy `python -m unittest discover tests`.

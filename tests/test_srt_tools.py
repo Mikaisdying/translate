@@ -25,17 +25,17 @@ GLOSSARY = """# Glossary
 
 | Gốc | Tiếng Việt | English | Ghi chú | Trạng thái |
 |-----|------------|---------|---------|------------|
-| art | nghệ thuật | art | | ✅ |
-| 图层 | Layer | Layer | | ✅ |
-| mask | mặt nạ | mask | | ❓ |
+| art | nghệ thuật | art | | x |
+| 图层 | Layer | Layer | | x |
+| mask | mặt nạ | mask | | ? |
 
-## 6. Lỗi ASR hay gặp
+## 5. Lỗi ASR hay gặp
 
 | ASR nghe sai | Đúng là | Ghi chú | Trạng thái |
 |--------------|---------|---------|------------|
-| photo shop | Photoshop | | ✅ |
-| 图 | 图层 | | ✅ |
-| PR | Premiere | | ❓ |
+| photo shop | Photoshop | | x |
+| 图 | 图层 | | x |
+| PR | Premiere | | ? |
 """
 
 
@@ -213,7 +213,7 @@ class ToolTest(unittest.TestCase):
         self.assertIn("a.srt | 1 | 'photo shop'", out)
         self.assertNotIn("| 2 |", out)   # 图 nằm trong 图层 đúng thì bỏ qua
         self.assertIn("a.srt | 3 | '图'", out)
-        self.assertNotIn("| 4 |", out)   # dòng ❓ không kiểm tra
+        self.assertNotIn("| 4 |", out)   # dòng `?` không kiểm tra
         self.assertIn("2 chỗ còn sót", out)
 
     # ---- find ----
