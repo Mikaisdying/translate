@@ -31,7 +31,7 @@ Unclear → report mode.
   - `pending`, `unsure`: written by the subagent, not handled yet.
   - `fixed`: applied in fix mode.
   - `skipped`: user chose not to fix.
-  `status` shows pending items per episode (`review: N chờ`), and `(cũ)` if the translation changed after the review file was last updated.
+  `status` shows review state per episode (`review: done`, `review: progressing (N)` with N items still `pending`/`unsure`, nothing = not reviewed), and `(cũ)` if the translation changed after the review file was last updated.
 - Never modify `workspace/cleaned/`, `workspace/raw/`, or `x` rows in `workspace/glossary.md`. Only fix mode may modify `workspace/trans/`.
 - Run from the project root: `python tools/srt_tools.py ...` (or `python3`).
 
@@ -74,7 +74,7 @@ No subagent tool: do the reference file yourself in this session. If the second 
    - None: run `status`, list PASS translations with their review state, and ask which to review (one, several, all). FAIL translations: report the structural error, no subagent needed.
    - No matching `workspace/cleaned/<name>.srt`: report and skip.
    - Episode marked "gốc sửa sau" in `status`: still review, but remind the user `workspace/cleaned/` changed after translation.
-   - Episode with a review file that still has pending items and isn't `(cũ)`: ask whether to continue that list (go to presenting, step 6) or review from scratch.
+   - Episode with `review: progressing` and isn't `(cũ)`: ask whether to continue that list (go to presenting, step 6) or review from scratch.
 2. **Archive the old review file** if any (re-review): `archive workspace/work/<name>/review.<code>.md` (moves into `workspace/work/<name>/backup/`). Never let a subagent overwrite old statuses.
 3. **Delegate** as above, or self-review if eligible.
 4. **Check the result**: the review file must have the header and well-formed entries (heading with ID, severity, type, status; lines Gốc, Hiện tại, Đề xuất, Lý do). Missing or broken → delegate again once; still broken → tell the user. If the subagent returned content in its reply because it couldn't write the file, write it to the review file yourself.

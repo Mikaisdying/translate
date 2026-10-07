@@ -359,8 +359,8 @@ class ToolTest(unittest.TestCase):
         os.utime(self.dir / "workspace/trans/ep01.en.srt", (later, later))
         code, out = self.run_tool("status")
         line = next(l for l in out.splitlines() if l.startswith("ep01"))
-        self.assertIn("review: 3 chờ", line)
-        self.assertIn("review xong (cũ)", line)
+        self.assertIn("review: progressing (2)", line)
+        self.assertIn("review: done (cũ)", line)
 
 
 if __name__ == "__main__":
