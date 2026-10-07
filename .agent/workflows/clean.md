@@ -1,5 +1,5 @@
 ---
-description: Clean phụ đề FunASR từ workspace/raw/ sang workspace/cleaned/ (không dịch)
+description: Clean FunASR subtitles from workspace/raw/ into workspace/cleaned/ (no translation)
 ---
-1. Dùng skill `clean-funasr` (đọc `.agent/skills/clean-funasr/SKILL.md` và làm đúng theo đó).
-2. Nếu người dùng ghi tên file sau lệnh thì chỉ làm file đó, không thì làm mọi file trong `workspace/raw/` chưa có bản trong `workspace/cleaned/`.
+1. Use skill `clean-funasr` (read `.agent/skills/clean-funasr/SKILL.md` and follow it exactly).
+2. If the user names a file after the command, do only that file; otherwise do every file in `workspace/raw/` that has no counterpart in `workspace/cleaned/`.

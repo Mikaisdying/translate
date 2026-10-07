@@ -1,84 +1,86 @@
 ---
 name: clean-funasr
-description: Sửa lỗi nhận dạng giọng nói trong file phụ đề SRT xuất từ FunASR (hoặc ASR khác như Whisper), đọc từ workspace/raw/ và ghi vào workspace/cleaned/, giữ nguyên ID và timestamp, KHÔNG dịch. Dùng skill này khi người dùng muốn clean, dọn, sửa, chuẩn hóa transcript hay phụ đề vừa nhận dạng xong, kể cả khi họ chỉ nói "dọn file trong raw", "fix sub", "sửa lỗi chính tả phụ đề" hoặc gõ /clean.
+description: Fix speech-recognition errors in SRT subtitles from FunASR (or other ASR like Whisper), reading workspace/raw/ and writing workspace/cleaned/, keeping IDs and timestamps, WITHOUT translating. Use when the user wants to clean, tidy, fix or normalize a fresh transcript/subtitle, even if they only say "dọn file trong raw", "fix sub", "sửa lỗi chính tả phụ đề" or type /clean.
 ---
 
 # Clean FunASR
 
-Mục tiêu: biến output thô của ASR thành bản phụ đề gốc sạch, đúng chữ, đúng dấu câu, để làm nguồn chuẩn cho bước dịch. Bản cleaned là thứ sẽ được dịch đi dịch lại nhiều lần bằng nhiều model, nên độ chính xác quan trọng hơn độ "hay".
+Goal: turn raw ASR output into a clean source subtitle with correct words and punctuation, the canonical source for translation. It will be translated many times by many models, so accuracy matters more than elegance.
 
-## Thư mục
+Talk to the user in Vietnamese.
 
-- Đọc từ `workspace/raw/`. Không bao giờ sửa hay ghi đè file trong `workspace/raw/`.
-- Ghi kết quả vào `workspace/cleaned/` cùng tên file: `workspace/raw/ep01.srt` → `workspace/cleaned/ep01.srt`.
-- File tạm để trong `workspace/work/<tên file>/` và có thể xóa sau khi xong.
-- Lệnh chạy từ thư mục gốc dự án: `python tools/srt_tools.py ...` (dùng `python3` nếu máy cần).
+## Folders
 
-## Chọn file cần xử lý
+- Read from `workspace/raw/`. Never modify or overwrite files there.
+- Write to `workspace/cleaned/` with the same name: `workspace/raw/ep01.srt` → `workspace/cleaned/ep01.srt`.
+- Temp files go in `workspace/work/<file>/`, deletable afterwards.
+- Run commands from the project root: `python tools/srt_tools.py ...` (`python3` if needed).
 
-- Người dùng chỉ định file nào thì làm file đó.
-- Không chỉ định: làm mọi `workspace/raw/*.srt` chưa có bản tương ứng trong `workspace/cleaned/`. File đã có bản cleaned thì bỏ qua, trừ khi người dùng yêu cầu làm lại.
-- Làm lại file đã có bản cleaned: trước tiên cất bản cũ bằng `python tools/srt_tools.py archive workspace/cleaned/<file>.srt workspace/work/<file>/cleaned` (chuyển vào `workspace/work/<file>/backup/`), để phần sửa cũ không bị gộp lẫn vào. Báo người dùng rằng các bản dịch trong `workspace/trans/` của file này đã dựa trên bản cleaned cũ.
-- Làm lần lượt từng file, xong file này (đến bước giao soát cho subagent) mới sang file khác.
+## Choosing files
 
-## Quy trình cho mỗi file
+- Do the files the user names.
+- None named: every `workspace/raw/*.srt` without a counterpart in `workspace/cleaned/`. Skip already-cleaned files unless asked to redo.
+- Redoing a cleaned file: first archive the old one with `python tools/srt_tools.py archive workspace/cleaned/<file>.srt workspace/work/<file>/cleaned` (moves into `workspace/work/<file>/backup/`) so old parts don't get merged in. Tell the user that existing translations in `workspace/trans/` were based on the old cleaned version.
+- One file at a time: finish a file (up to handing the audit to a subagent) before the next.
 
-1. **Kiểm tra định dạng**: `python tools/srt_tools.py info workspace/raw/<file>.srt`. Nếu báo lỗi định dạng, dừng lại và báo người dùng. Không tự đoán để sửa cấu trúc, vì sửa sai ID/timestamp sẽ làm lệch toàn bộ phụ đề.
-2. **Đọc glossary**: đọc `workspace/glossary.md` nếu có, chú ý mục 1 (thông tin chung), 2 (nhân vật), 4 (thuật ngữ), 6 (lỗi ASR hay gặp). Dòng ✅ là bắt buộc theo; dòng ❓ chỉ tham khảo. Glossary trống thì vẫn làm bình thường.
-3. **Nắm nội dung trước khi sửa**: nhiều lỗi ASR chỉ nhận ra được khi đã biết bài nói về gì, nhưng không đọc cả file hai lần (một lần lướt, một lần khi sửa).
-   - File ≤ 150 block: bỏ bước này, đọc thẳng ở bước 4.
-   - File dài hơn: giao subagent tóm tắt, lời giao việc chỉ gồm `Đọc và làm đúng theo .agent/skills/clean-funasr/references/summarize.md` và `File: workspace/raw/<file>.srt`. Ghi nguyên câu trả lời vào `workspace/work/<file>/summary.md`; bước dịch sẽ dùng lại file này thay vì đọc lại cả bài. Môi trường không có subagent thì đọc lướt cả file một lần bằng `text` rồi tự viết `summary.md` theo mẫu đó.
-4. **Sửa**: không tự viết lại ID và timestamp. Đọc chữ bằng `text`, viết phần chữ đã sửa vào file text, mỗi block một dòng dạng `ID | chữ` (block nhiều dòng thì nối bằng ` / `), rồi để `merge` ghép vào đúng ID, timestamp của bản gốc. `merge` từ chối nếu thiếu ID, thừa ID, trùng ID hay có block rỗng.
-   Block không cần sửa thì ghi `ID | =` (giữ nguyên chữ gốc) thay vì chép lại cả câu: vẫn phải có đủ mọi ID, nhưng chỉ viết lại chữ của những block thật sự sửa. Đây là phần tốn token nhất của bước clean, nên đừng đụng vào block chỉ để làm đẹp (xem "Sửa kèm" bên dưới).
-   - File ≤ 150 block: `python tools/srt_tools.py text workspace/raw/<file>.srt`, viết `workspace/work/<file>/cleaned.txt`, rồi `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned.txt workspace/cleaned/<file>.srt`.
-   - File dài hơn: làm từng phần 100 block. Phần 1 là block 1-100: `python tools/srt_tools.py text workspace/raw/<file>.srt --from 1 --to 100`, viết `workspace/work/<file>/cleaned/part_001.txt`; phần 2 là 101-200 vào `part_002.txt`, cứ thế. Ghi mỗi phần ngay khi xong. Không đọc file `.srt` trực tiếp (tốn gấp đôi token vì có ID và timestamp), không cần `split`.
-   - Tiến độ: `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` cho biết phần nào xong, dở hay chưa làm, và in sẵn lệnh `text` cho phần tiếp theo. Bị ngắt giữa chừng thì chạy lệnh này, đọc `summary.md`, đọc lại khoảng 10 block cuối của phần trước bằng `text` để câu nối liền, rồi làm tiếp. Đang làm liền một mạch thì phần trước vẫn còn trong ngữ cảnh, không cần đọc lại.
-   - Ghép khi `parts` báo xong hết: `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned workspace/cleaned/<file>.srt --cleanup`. `--cleanup` xóa thư mục phần sau khi ghép thành công; từ đây sửa thẳng trên `workspace/cleaned/<file>.srt`.
-5. **Kiểm tra**: `python tools/srt_tools.py validate workspace/raw/<file>.srt workspace/cleaned/<file>.srt`. Phải ra PASS. Nếu FAIL, sửa đúng chỗ báo lỗi rồi chạy lại. Không báo hoàn thành khi chưa PASS.
-6. **Lỗi ASR đã duyệt**: `python tools/srt_tools.py check-asr workspace/cleaned/<file>.srt` báo những chỗ còn sót lỗi ASR ✅ ở mục 6 glossary. Sửa hết, trừ chỗ mà ngữ cảnh cho thấy chữ đó đúng ở đây (ghi vào báo cáo).
-7. **Soát bằng subagent**: giao cho subagent (công cụ Agent/Task trong Claude Code, `runSubagent` trong VS Code Copilot) lời giao việc chỉ gồm:
+## Per-file procedure
+
+1. **Check format**: `python tools/srt_tools.py info workspace/raw/<file>.srt`. On a format error, stop and tell the user. Never guess-fix structure; a wrong ID/timestamp shifts the whole subtitle.
+2. **Read glossary**: `workspace/glossary.md` if present, especially sections 1 (general), 2 (characters), 4 (terms), 5 (ASR errors). `x` rows are mandatory; `?` rows are hints. An empty glossary is fine.
+3. **Understand the content first**: many ASR errors are only recognizable once you know the topic, but never read the whole file twice (one skim, one pass while fixing).
+   - ≤ 150 blocks: skip this step, read directly in step 4.
+   - Longer: delegate a summary to a subagent with a task message of only `Read and follow .agent/skills/clean-funasr/references/summarize.md` and `File: workspace/raw/<file>.srt`. Save its reply verbatim to `workspace/work/<file>/summary.md`; the translate step reuses it instead of rereading the file. No subagent tool: skim once with `text` and write `summary.md` yourself using that template.
+4. **Fix**: never rewrite IDs or timestamps yourself. Read text with `text`, write the fixed text to a text file, one block per line as `ID | text` (multi-line blocks joined with ` / `), then let `merge` put it back onto the original IDs and timestamps. `merge` rejects missing, extra or duplicate IDs and empty blocks.
+   For unchanged blocks write `ID | =` (keep original text) instead of copying the sentence: every ID must be present, but only rewrite blocks you actually fix. This is the most token-expensive part of cleaning, so don't touch a block just to polish it (see "Incidental fixes").
+   - ≤ 150 blocks: `python tools/srt_tools.py text workspace/raw/<file>.srt`, write `workspace/work/<file>/cleaned.txt`, then `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned.txt workspace/cleaned/<file>.srt`.
+   - Longer: work in 100-block parts. Part 1 = blocks 1-100: `python tools/srt_tools.py text workspace/raw/<file>.srt --from 1 --to 100`, write `workspace/work/<file>/cleaned/part_001.txt`; part 2 = 101-200 → `part_002.txt`, and so on. Write each part as soon as it's done. Never read the `.srt` directly (twice the tokens due to IDs/timestamps); no need for `split`.
+   - Progress: `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` shows done, partial and pending parts and prints the `text` command for the next part. If interrupted: run it, read `summary.md`, reread the last ~10 blocks of the previous part with `text` for continuity, then continue. Working in one go, the previous part is still in context; don't reread.
+   - When `parts` reports all done: `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned workspace/cleaned/<file>.srt --cleanup`. `--cleanup` deletes the parts folder after a successful merge; from then on edit `workspace/cleaned/<file>.srt` directly.
+5. **Validate**: `python tools/srt_tools.py validate workspace/raw/<file>.srt workspace/cleaned/<file>.srt`. Must PASS. On FAIL, fix the reported spots and rerun. Never report done before PASS.
+6. **Approved ASR errors**: `python tools/srt_tools.py check-asr workspace/cleaned/<file>.srt` lists leftover `x` ASR errors from glossary section 5. Fix all, except where context shows the word is correct here (note those in the report).
+7. **Subagent audit**: delegate (Agent/Task in Claude Code, `runSubagent` in VS Code Copilot) with a task message of only:
 
    ```
-   Đọc và làm đúng theo .agent/skills/clean-funasr/references/audit.md
-   Bản raw: workspace/raw/<file>.srt
-   Bản cleaned: workspace/cleaned/<file>.srt
+   Read and follow .agent/skills/clean-funasr/references/audit.md
+   Raw: workspace/raw/<file>.srt
+   Cleaned: workspace/cleaned/<file>.srt
    ```
 
-   Subagent chỉ đọc và trả danh sách chỗ nghi sửa quá tay, đổi nghĩa, không nhất quán trong câu trả lời, không tạo file. Không kèm nhận xét của bạn để giữ góc nhìn độc lập. Trong lúc chờ có thể làm tiếp file sau. Môi trường không có subagent thì tự làm theo `audit.md` đó.
-   Không tự áp dụng kết quả soát: đưa vào báo cáo cuối để người dùng chọn (xem dưới). Người dùng chọn xong thì sửa đúng các mục đó trong `workspace/cleaned/<file>.srt` rồi chạy lại `validate`. Phiên mới không còn danh sách thì giao soát lại.
+   The subagent only reads and returns, in its reply, spots that look over-edited, meaning-changed or inconsistent; it creates no files. Add none of your own comments, to keep its view independent. You may start the next file while waiting. No subagent tool: do `audit.md` yourself.
+   Don't apply audit results yourself: put them in the final report for the user to choose (below). After the user chooses, fix exactly those items in `workspace/cleaned/<file>.srt` and rerun `validate`. In a new session without the list, rerun the audit.
 
-## Được sửa
+## Allowed fixes
 
-Chỉ sửa khi ngữ cảnh cho thấy rõ là lỗi:
+Only when context clearly shows an error:
 
-- Chữ nhận dạng sai do đồng âm, gần âm (VD tiếng Trung: 他/她/它, 在/再, 的/得/地; tiếng Anh: their/there, "a lot" bị nghe thành "allot").
-- Tên riêng, thuật ngữ, địa danh bị nhận sai, đặc biệt khi cùng một tên bị viết nhiều kiểu trong file: thống nhất về một cách viết đúng (theo glossary nếu có).
-- Phím tắt và tên phần mềm bị ASR nhận sai: chuẩn hóa về dạng chuẩn. Tên phím viết hoa chữ đầu (Ctrl, Shift, Alt, Cmd, Option, Enter, Tab, Esc, Space), chữ cái viết hoa, nối bằng " + ". VD "ctrl加r", "control R", "Ctrl 加 Shift 加 S" → "Ctrl + R", "Ctrl + Shift + S". Tên phần mềm khi rõ là gì thì viết đúng tên: "photo shop", "PS软件" → "Photoshop". Tên menu, công cụ bằng ngôn ngữ gốc (VD 图层, 画笔工具) KHÔNG đổi sang tiếng Anh ở bước clean vì clean không được dịch; chỉ sửa chính tả.
-- Từ bị lặp do ASR làm câu khó hiểu ("我我我们", "the the"), từ bị cắt vỡ.
-- Dấu câu thiếu hoặc sai mà làm câu bị hiểu sai (VD không ngắt thì đọc thành nghĩa khác).
+- Homophone / near-homophone misrecognitions (Chinese: 他/她/它, 在/再, 的/得/地; English: their/there, "a lot" heard as "allot").
+- Misrecognized names, terms, places, especially one name spelled several ways in the file: unify to one correct spelling (per glossary if present).
+- Misrecognized shortcuts and software names: normalize. Key names capitalized (Ctrl, Shift, Alt, Cmd, Option, Enter, Tab, Esc, Space), letter keys uppercase, joined with " + ". E.g. "ctrl加r", "control R", "Ctrl 加 Shift 加 S" → "Ctrl + R", "Ctrl + Shift + S". Software names when clear: "photo shop", "PS软件" → "Photoshop". Menu/tool names in the source language (e.g. 图层, 画笔工具) are NOT converted to English at clean, since clean doesn't translate; only fix spelling.
+- ASR-repeated words that hurt readability ("我我我们", "the the"), broken words.
+- Missing or wrong punctuation that changes meaning.
 
-**Sửa kèm**: những việc sau chỉ làm trong block đang sửa vì một lý do ở trên, không sửa một block chỉ vì chúng. Bước dịch tự xử lý ngắt câu và bỏ từ đệm, nên viết lại cả file chỉ để làm đẹp là tốn token mà không giúp gì thêm:
+**Incidental fixes**: only inside a block already being fixed for a reason above; never edit a block just for these. Translation handles sentence breaks and fillers, so rewriting the whole file for looks wastes tokens:
 
-- Thêm dấu câu, viết hoa đầu câu và tên riêng (với ngôn ngữ có chữ hoa).
-- Bỏ từ đệm thuần túy (嗯, 啊, 呃, um, uh) nếu block vẫn còn nội dung khác. Block chỉ có từ đệm thì giữ nguyên, vì block không được để trống.
-- Khoảng trắng thừa, gộp dòng bị ngắt giữa chừng trong block.
+- Punctuation, capitalizing sentence starts and names (for cased languages).
+- Removing pure fillers (嗯, 啊, 呃, um, uh) if the block still has other content. A filler-only block stays as is, since blocks may not be empty.
+- Extra whitespace, joining lines broken mid-block.
 
-## Không được làm
+## Never
 
-- Không dịch. Dịch là việc của skill `translate-subtitle`.
-- Không đổi ID, timestamp, thứ tự block, số lượng block. Không gộp hay tách block, kể cả khi một câu bị cắt ngang qua nhiều block: chỉ sửa chữ trong từng block, để câu tự nối qua các block.
-- Không viết lại cho hay hơn, không đổi văn phong, không tóm tắt, không thêm ý.
-- Không bỏ phần lời có nghĩa, kể cả câu nói lắp, câu chửi, câu ngập ngừng mang cảm xúc.
-- Không đưa ghi chú, Markdown, giải thích hay dấu [?] vào file phụ đề. Chỗ nào không chắc thì giữ nguyên chữ gốc và ghi vào báo cáo.
+- Translate. That is the job of `translate-subtitle`.
+- Change IDs, timestamps, block order or count. Never merge or split blocks, even when a sentence spans several: fix text within each block and let the sentence flow across them.
+- Rewrite for style, change tone, summarize or add ideas.
+- Drop meaningful speech, including stutters, swearing, emotional hesitation.
+- Put notes, Markdown, explanations or [?] into the subtitle file. If unsure, keep the original text and mention it in the report.
 
-Nguyên tắc khi phân vân: giữ nguyên. Một lỗi ASR còn sót thì người dịch vẫn có thể đoán ra; một chỗ bị "sửa" sai nghĩa thì sẽ bị dịch sai một cách tự tin.
+When in doubt, keep it. A leftover ASR error can still be guessed by the translator; a wrong "fix" gets translated wrong with confidence.
 
-## Báo cáo khi xong
+## Report
 
-Trả lời ngắn gọn trong chat (không ghi vào file phụ đề):
+Brief, in chat (never in the subtitle file):
 
-- File đã xử lý, số block, số block có thay đổi, kết quả validate.
-- Vài sửa đổi tiêu biểu.
-- Những chỗ không chắc (kèm ID) để người dùng tự kiểm tra.
-- Kết quả soát của subagent: số mục theo loại cho từng file, toàn bộ mục "đổi nghĩa" (giữ format từng mục để người dùng chọn theo ID), các mục khác gom theo loại kèm ID. Hỏi người dùng muốn sửa những mục nào (tất cả, theo loại, theo ID, hay không sửa).
-- Lỗi ASR lặp lại nhiều lần hoặc tên riêng mới phát hiện: đề xuất thêm vào `workspace/glossary.md` (mục 2, 4 hoặc 6) với trạng thái ❓. Chỉ ghi vào glossary khi người dùng đồng ý.
+- Files processed, block count, changed-block count, validate result.
+- A few representative fixes.
+- Uncertain spots (with IDs) for the user to check.
+- Subagent audit: counts per type per file, all "Đổi nghĩa" items in full (keep each item's format so the user can choose by ID), other items grouped by type with IDs. Ask which to fix (all, by type, by ID, or none).
+- Recurring ASR errors or newly found names: propose adding them to `workspace/glossary.md` (section 2, 4 or 5) with status `?`. Write to the glossary only if the user agrees.

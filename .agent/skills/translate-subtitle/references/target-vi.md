@@ -1,41 +1,41 @@
-# Dịch sang tiếng Việt
+# Translating into Vietnamese
 
-## Xưng hô
+## Forms of address (xưng hô)
 
-Đây là chỗ bản dịch tiếng Việt dễ hỏng nhất, vì tiếng Trung/Anh/Nhật thường chỉ có "tôi - bạn" trung tính còn tiếng Việt bắt buộc phải chọn.
+This is where Vietnamese translations break most easily: Chinese/English/Japanese often use neutral "I - you", while Vietnamese forces a choice.
 
-- Ưu tiên tuyệt đối mục 3 "Xưng hô" trong `workspace/glossary.md`.
-- Chưa có thì tự chọn theo quan hệ (tuổi, vai vế, thân sơ, bối cảnh) rồi ghi vào `notes.<mã>.md`, giữ nhất quán cho từng cặp người nói → người nghe.
-- Chỉ đổi xưng hô khi quan hệ thật sự thay đổi trong truyện (thành người yêu, trở mặt, lộ thân phận...) và ghi rõ từ ID nào vào `notes.<mã>.md`.
-- Gợi ý theo bối cảnh: hiện đại thân mật (tớ - cậu, anh - em, mày - tao khi bạn thân hoặc gây gổ), hiện đại lịch sự (tôi - anh/chị), cổ trang (ta - ngươi, tại hạ - các hạ, thần - bệ hạ, con - sư phụ...).
-- Câu gốc không có chủ ngữ thì tiếng Việt cũng có thể lược, đừng thêm "tôi", "bạn" khi không cần.
+- Glossary section 3 "Xưng hô" in `workspace/glossary.md` has absolute priority.
+- Otherwise choose by relationship (age, rank, closeness, setting), record it in `notes.<code>.md`, and keep it consistent per speaker → listener pair.
+- Change address only when the relationship truly changes in the story (become lovers, turn hostile, identity revealed...) and record from which ID in `notes.<code>.md`.
+- Suggestions by setting: modern casual (tớ - cậu, anh - em, mày - tao for close friends or fights), modern polite (tôi - anh/chị), period/wuxia (ta - ngươi, tại hạ - các hạ, thần - bệ hạ, con - sư phụ...).
+- If the source has no subject, Vietnamese may omit it too; don't add "tôi", "bạn" unnecessarily.
 
-## Tên riêng
+## Names
 
-- Theo glossary và mục "Quy ước tên riêng" ở mục 1.
-- Chưa có quy ước: tên Trung trong phim cổ trang, tiên hiệp thường dùng Hán Việt; phim hiện đại có thể dùng Hán Việt hoặc pinyin, chọn một và ghi vào `notes.<mã>.md`. Tên phương Tây giữ nguyên.
-- Một nhân vật chỉ có một cách viết tên trong suốt file.
+- Follow the glossary and "Quy ước tên riêng" in section 1.
+- No convention yet: Chinese names in period/xianxia dramas usually use Hán Việt; modern dramas may use Hán Việt or pinyin, pick one and record it in `notes.<code>.md`. Western names stay as is.
+- One spelling per character throughout the file.
 
-## Thuật ngữ kỹ thuật, phần mềm, phím tắt
+## Technical terms, software, shortcuts
 
-- Tên phần mềm, thương hiệu giữ nguyên (Photoshop, Premiere Pro, Blender, Excel...). Không dịch, không phiên âm.
-- Phím tắt viết theo chuẩn: tên phím viết hoa chữ đầu (Ctrl, Shift, Alt, Cmd, Option, Enter, Tab, Esc, Space), chữ cái viết hoa, nối bằng " + ". VD: Ctrl + R, Ctrl + Shift + S, Cmd + Option + I. Không bao giờ viết "Ctrl cộng R", "Ctrl加R", "control plus R".
-- Tên menu, công cụ, bảng, tùy chọn theo giao diện tiếng Anh, đường dẫn menu dùng " > ". VD: Layer, Brush Tool, Filter > Blur > Gaussian Blur.
-- Video hướng dẫn tiếng Trung/Nhật: tên menu và công cụ theo giao diện ngôn ngữ gốc (图层, 画笔工具, 滤镜 > 模糊) thì dịch sang tên giao diện tiếng Anh tương ứng (Layer, Brush Tool, Filter > Blur), vì phần lớn người dùng Việt dùng giao diện tiếng Anh. Không chắc tên giao diện tiếng Anh chính xác thì ghi vào `notes.<mã>.md` và báo cáo.
-- Thuật ngữ chuyên ngành: dùng cách gọi phổ biến nhất trong cộng đồng người dùng Việt Nam, không bắt buộc dịch. VD dân thiết kế nói "layer", "mask", "render", "plugin", "keyframe" chứ không nói "lớp phủ mặt nạ". Từ nào người Việt quen dùng tiếng Việt thì dùng tiếng Việt.
-- Không chú thích kiểu "Layer (lớp)" trong phụ đề.
-- Glossary luôn ưu tiên cao nhất; glossary quy định khác thì theo glossary.
+- Software and brand names stay as is (Photoshop, Premiere Pro, Blender, Excel...). Never translate or transliterate.
+- Shortcuts in standard form: key names capitalized (Ctrl, Shift, Alt, Cmd, Option, Enter, Tab, Esc, Space), letter keys uppercase, joined with " + ". E.g. Ctrl + R, Ctrl + Shift + S, Cmd + Option + I. Never "Ctrl cộng R", "Ctrl加R", "control plus R".
+- Menus, tools, panels, options use English UI names; menu paths use " > ". E.g. Layer, Brush Tool, Filter > Blur > Gaussian Blur.
+- Chinese/Japanese tutorials: menu and tool names in the source-language UI (图层, 画笔工具, 滤镜 > 模糊) are translated to the matching English UI names (Layer, Brush Tool, Filter > Blur), since most Vietnamese users use the English UI. If unsure of the exact English name, record it in `notes.<code>.md` and report it.
+- Domain jargon: use what the Vietnamese user community actually says, translation not required. E.g. designers say "layer", "mask", "render", "plugin", "keyframe", not "lớp phủ mặt nạ". Where Vietnamese users commonly use a Vietnamese word, use it.
+- No glosses like "Layer (lớp)" in the subtitle.
+- The glossary always wins; if it says otherwise, follow it.
 
-## Văn phong
+## Style
 
-- Viết như người Việt nói, không dịch word-by-word. Tránh văn dịch như "Điều này là bởi vì...", "Nó là...", lạm dụng "một cách", "được" bị động.
-- Dùng tiểu từ cuối câu để thể hiện giọng: à, ạ, nhé, nhỉ, đấy, mà, chứ, thôi, hả... Đây là thứ làm câu thoại tiếng Việt sống động, nhưng đừng nhét vào mọi câu.
-- Thành ngữ, tục ngữ: dùng thành ngữ tiếng Việt tương đương nếu có, không thì diễn nghĩa.
-- Từ Hán Việt hợp với cổ trang, trang trọng; phim đời thường dùng từ thuần Việt, khẩu ngữ.
-- Câu chửi, câu thô: dịch đúng mức độ nặng nhẹ của bản gốc, không làm nhẹ đi hay nặng thêm.
+- Write as Vietnamese people speak, not word-by-word. Avoid translationese like "Điều này là bởi vì...", "Nó là...", overusing "một cách" and passive "được".
+- Use sentence-final particles to carry tone: à, ạ, nhé, nhỉ, đấy, mà, chứ, thôi, hả... They make Vietnamese dialogue alive, but don't put one in every line.
+- Idioms: use an equivalent Vietnamese idiom if one exists, otherwise convey the meaning.
+- Hán Việt vocabulary suits period/formal settings; everyday dramas use native, colloquial Vietnamese.
+- Swearing and crude speech: match the source's intensity, neither softened nor harsher.
 
-## Trình bày
+## Presentation
 
-- Dấu câu theo chuẩn tiếng Việt, không dùng dấu câu toàn khổ của tiếng Trung (，。！？：“”).
-- Không dùng chữ Hán trong bản dịch.
-- Số đếm, giờ giấc viết theo cách người Việt quen đọc.
+- Vietnamese punctuation; no full-width Chinese punctuation (，。！？：“”).
+- No Chinese characters in the translation.
+- Numbers and times written the way Vietnamese readers are used to.

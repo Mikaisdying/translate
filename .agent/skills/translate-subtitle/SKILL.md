@@ -1,73 +1,75 @@
 ---
 name: translate-subtitle
-description: Dịch file phụ đề SRT đã clean trong workspace/cleaned/ sang tiếng Việt (vi) hoặc tiếng Anh (en), ghi vào workspace/trans/, giữ nguyên ID, timestamp và số block, tuân theo workspace/glossary.md. Dùng skill này khi người dùng muốn dịch phụ đề, dịch sub, làm vietsub/engsub, dịch lại bằng model khác, dịch tiếp hay làm tiếp file đang dịch dở (sau khi mất mạng, hết phiên), hoặc gõ /trans-vi, /trans-en, /translate-subtitle vi, /translate-subtitle en.
+description: Translate cleaned SRT subtitles in workspace/cleaned/ into Vietnamese (vi) or English (en), writing workspace/trans/, keeping IDs, timestamps and block count, following workspace/glossary.md. Use when the user wants to translate subtitles, make vietsub/engsub, retranslate with another model, or resume a half-finished translation (after a dropped connection or ended session), e.g. "dịch sub", "dịch tiếp", or types /trans-vi, /trans-en, /translate-subtitle vi, /translate-subtitle en.
 ---
 
 # Translate Subtitle
 
-Mục tiêu: bản dịch phụ đề đọc tự nhiên như người bản ngữ viết, đúng nghĩa, nhất quán tên và xưng hô từ đầu đến cuối, và khớp chính xác từng block với bản gốc.
+Goal: a translation that reads naturally as if written by a native speaker, accurate, with consistent names and address forms throughout, matching the source block for block.
 
-## Xác định ngôn ngữ đích
+Talk to the user in Vietnamese.
 
-Ngôn ngữ đích lấy từ lệnh hoặc lời người dùng:
+## Target language
+
+From the command or the user's words:
 
 - `vi`, `/trans-vi`, "tiếng Việt", "vietsub" → **vi**
 - `en`, `/trans-en`, "tiếng Anh", "English", "engsub" → **en**
 
-Nếu không rõ, hỏi người dùng một câu trước khi làm. Sau khi xác định, đọc file hướng dẫn riêng cho ngôn ngữ đó:
+If unclear, ask one question first. Then read the language guide:
 
 - vi → `references/target-vi.md`
 - en → `references/target-en.md`
 
-(Muốn thêm ngôn ngữ mới: tạo `references/target-<mã>.md` theo mẫu hai file trên.)
+(New language: add `references/target-<code>.md` modeled on those two.)
 
-## Thư mục
+## Folders
 
-- Đọc từ `workspace/cleaned/`. Ghi vào `workspace/trans/<tên>.<mã ngôn ngữ>.srt`: `workspace/cleaned/ep01.srt` → `workspace/trans/ep01.vi.srt`.
-- Không sửa `workspace/cleaned/`, không đụng `workspace/raw/`.
-- Nếu file chỉ có trong `workspace/raw/` mà chưa có trong `workspace/cleaned/`: báo người dùng và đề nghị chạy clean trước. Chỉ dịch thẳng từ `workspace/raw/` khi người dùng đồng ý rõ ràng.
-- File tạm để trong `workspace/work/<tên file>/`.
-- Lệnh chạy từ thư mục gốc dự án: `python tools/srt_tools.py ...` (hoặc `python3`).
+- Read `workspace/cleaned/`. Write `workspace/trans/<name>.<code>.srt`: `workspace/cleaned/ep01.srt` → `workspace/trans/ep01.vi.srt`.
+- Never modify `workspace/cleaned/` or touch `workspace/raw/`.
+- File only in `workspace/raw/`, not in `workspace/cleaned/`: tell the user and suggest cleaning first. Translate from `workspace/raw/` only with explicit consent.
+- Temp files in `workspace/work/<file>/`.
+- Run from the project root: `python tools/srt_tools.py ...` (or `python3`).
 
-## Chọn file
+## Choosing files
 
-- Người dùng chỉ định file nào thì dịch file đó.
-- Không chỉ định: dịch mọi `workspace/cleaned/*.srt` chưa có bản `.<mã>.srt` trong `workspace/trans/`. Đã có thì bỏ qua, trừ khi được yêu cầu dịch lại.
-- `python tools/srt_tools.py status` cho bảng tổng quan bài nào đã dịch, validate PASS hay chưa.
+- Translate the files the user names.
+- None named: every `workspace/cleaned/*.srt` without a `.<code>.srt` in `workspace/trans/`. Skip existing ones unless asked to retranslate.
+- `python tools/srt_tools.py status` gives an overview: what's translated, validate PASS or not.
 
-## Dịch lại
+## Retranslating
 
-Khi dịch lại một file đã có bản dịch (VD đổi model), trước khi bắt đầu phải cất bản cũ:
+When retranslating a file that already has a translation (e.g. switching model), archive the old one first:
 
 ```
-python tools/srt_tools.py archive workspace/trans/<file>.<mã>.srt workspace/work/<file>/<mã>
+python tools/srt_tools.py archive workspace/trans/<file>.<code>.srt workspace/work/<file>/<code>
 ```
 
-Lệnh này chuyển bản dịch cũ và các phần đã dịch cũ vào `workspace/work/<file>/backup/` kèm thời gian. Không dùng lại phần nào của lần dịch trước: nếu phần cũ còn nằm trong `workspace/work/<file>/<mã>/`, `merge` sẽ ghép lẫn hai bản dịch mà `validate` vẫn PASS vì ID và timestamp khớp. Giữ `notes.<mã>.md` vì đó là các quyết định cần nhất quán, nhưng đọc lại với con mắt phê phán. Chỉ đọc bản cũ trong `backup/` khi người dùng yêu cầu.
+This moves the old translation and old parts into `workspace/work/<file>/backup/` with a timestamp. Reuse no part of the previous run: if old parts remain in `workspace/work/<file>/<code>/`, `merge` will mix two translations and `validate` still PASSes because IDs and timestamps match. Keep `notes.<code>.md` (decisions that must stay consistent) but read it critically. Read the old version in `backup/` only if the user asks.
 
-Đang dịch dở (cùng một lần dịch, làm tiếp ở phiên mới) thì không cất: làm tiếp từ phần chưa có trong `workspace/work/<file>/<mã>/`.
+Resuming the same run in a new session: don't archive; continue from parts missing in `workspace/work/<file>/<code>/`.
 
-## Quy trình cho mỗi file
+## Per-file procedure
 
-1. **Kiểm tra**: `python tools/srt_tools.py info workspace/cleaned/<file>.srt`. Lỗi định dạng thì dừng và báo.
-2. **Đọc glossary**: đọc toàn bộ `workspace/glossary.md`. Dòng ✅ là bắt buộc, ưu tiên hơn mọi lựa chọn của bạn. Dòng ❓ dùng làm gợi ý. Ô trống thì tự quyết nhưng phải nhất quán.
-3. **Nắm nội dung trước khi dịch**: cần biết ai là ai, quan hệ ra sao, giọng điệu thế nào, vì xưng hô và cách gọi tên ở đầu bài phụ thuộc vào những gì xảy ra về sau. Nhưng không đọc cả file hai lần (một lần lướt, một lần khi dịch).
-   - Có `workspace/work/<file>/summary.md` (bước clean đã tạo): đọc file đó, không đọc lại cả bài.
-   - Chưa có, file ≤ 150 block: bỏ bước này, đọc thẳng ở bước 5.
-   - Chưa có, file dài hơn: giao subagent theo `.agent/skills/clean-funasr/references/summarize.md` với `File: workspace/cleaned/<file>.srt`, ghi câu trả lời vào `summary.md` rồi đọc nó. Không có subagent thì đọc lướt một lần bằng `text` và tự viết `summary.md`.
-4. **Ghi sổ quyết định**: tạo `workspace/work/<file>/notes.<mã>.md` (mỗi ngôn ngữ một sổ, vì xưng hô tiếng Việt hay cách viết tên tiếng Anh không áp dụng cho ngôn ngữ kia), ghi lại các quyết định chưa có trong glossary (tên dịch thế nào, ai xưng hô với ai ra sao, thuật ngữ chọn cách nào). Thêm vào ngay khi có quyết định mới. Trong cùng phiên, sổ vẫn còn trong ngữ cảnh nên không cần đọc lại; làm tiếp ở phiên khác thì đọc lại trước tiên.
-5. **Dịch**: không tự viết lại ID và timestamp. Đọc bản gốc bằng `text`, viết bản dịch vào file text, mỗi block một dòng dạng `ID | bản dịch` (block hai dòng thì nối bằng ` / `), rồi để `merge` ghép vào đúng ID, timestamp của bản gốc. `merge` từ chối nếu thiếu ID, thừa ID, trùng ID hay có block rỗng.
-   - File ≤ 150 block: `python tools/srt_tools.py text workspace/cleaned/<file>.srt`, viết `workspace/work/<file>/<mã>.txt`, rồi `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<mã>.txt workspace/trans/<file>.<mã>.srt`.
-   - File dài hơn: dịch từng phần 100 block. Phần 1 là block 1-100: `python tools/srt_tools.py text workspace/cleaned/<file>.srt --from 1 --to 100`, viết `workspace/work/<file>/<mã>/part_001.txt`; phần 2 là 101-200 vào `part_002.txt`, cứ thế. Ghi mỗi phần ngay khi dịch xong. Không đọc file `.srt` trực tiếp (tốn gấp đôi token vì có ID và timestamp), không cần `split`.
-   - Tiến độ: `python tools/srt_tools.py parts workspace/cleaned/<file>.srt workspace/work/<file>/<mã>` cho biết phần nào xong, dở (thiếu, thừa, trùng ID, block rỗng) hay chưa làm, và in sẵn lệnh `text` cho phần tiếp theo. Không cần file checklist: tool kiểm tra thẳng file phần nên không bao giờ lệch với thực tế. Bị ngắt giữa chừng (mất mạng, hết phiên) thì chạy lệnh này, đọc `summary.md` và `notes.<mã>.md`, đọc lại khoảng 10 block cuối của phần trước, cả gốc lẫn dịch (`pair` không dùng được vì bản dịch chưa ghép; đọc `text` bản gốc và cuối file phần trước), rồi làm tiếp. Đang dịch liền một mạch thì phần trước vẫn còn trong ngữ cảnh, không cần đọc lại.
-   - Ghép khi `parts` báo xong hết: `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<mã> workspace/trans/<file>.<mã>.srt --cleanup`. `--cleanup` xóa thư mục phần sau khi ghép thành công, để `workspace/trans/<file>.<mã>.srt` là bản duy nhất; từ đây mọi sửa đổi (kể cả theo review) làm thẳng trên file này.
-6. **Kiểm tra**: `python tools/srt_tools.py validate workspace/cleaned/<file>.srt workspace/trans/<file>.<mã>.srt --target <mã>`. Phải PASS. Cảnh báo "còn sót chữ gốc" hay "có Markdown" phải sửa hết; cảnh báo "block giống hệt bản gốc" thì xem lại bằng lệnh `diff` (tên riêng, tiếng kêu, số thì được phép giống).
-7. **Glossary**: `python tools/srt_tools.py check-glossary workspace/cleaned/<file>.srt workspace/trans/<file>.<mã>.srt --target <mã>`. Sửa mọi vi phạm dòng ✅, trừ chỗ lệnh báo nhầm (thuật ngữ được diễn đạt khác mà vẫn đúng ý glossary): ghi các chỗ đó vào báo cáo. Sửa xong chạy lại `validate`.
-8. **Tự soát**: đọc lại bản dịch bằng lệnh `text`, tìm chỗ xưng hô lệch, tên viết không đồng nhất, câu đọc gượng.
+1. **Check**: `python tools/srt_tools.py info workspace/cleaned/<file>.srt`. Format error → stop and report.
+2. **Read glossary**: all of `workspace/glossary.md`. `x` rows are mandatory and override your choices. `?` rows are suggestions. Empty cells: decide yourself, consistently.
+3. **Understand the content first**: you need to know who's who, relationships and tone, since address and naming early on depend on what happens later. But never read the whole file twice (one skim, one pass while translating).
+   - `workspace/work/<file>/summary.md` exists (made at clean): read it, not the whole file.
+   - Missing, ≤ 150 blocks: skip this step, read directly in step 5.
+   - Missing, longer: delegate to a subagent per `.agent/skills/clean-funasr/references/summarize.md` with `File: workspace/cleaned/<file>.srt`, save the reply to `summary.md` and read it. No subagent tool: skim once with `text` and write `summary.md` yourself.
+4. **Decision log**: create `workspace/work/<file>/notes.<code>.md` (one per language, since Vietnamese address or English name spelling don't carry over), recording decisions not in the glossary (how names are rendered, who addresses whom how, term choices). Add to it as soon as a new decision is made. Within a session it's still in context, no need to reread; in a new session read it first.
+5. **Translate**: never rewrite IDs or timestamps yourself. Read the source with `text`, write the translation to a text file, one block per line as `ID | translation` (two-line blocks joined with ` / `), then let `merge` put it onto the source IDs and timestamps. `merge` rejects missing, extra or duplicate IDs and empty blocks.
+   - ≤ 150 blocks: `python tools/srt_tools.py text workspace/cleaned/<file>.srt`, write `workspace/work/<file>/<code>.txt`, then `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<code>.txt workspace/trans/<file>.<code>.srt`.
+   - Longer: translate in 100-block parts. Part 1 = blocks 1-100: `python tools/srt_tools.py text workspace/cleaned/<file>.srt --from 1 --to 100`, write `workspace/work/<file>/<code>/part_001.txt`; part 2 = 101-200 → `part_002.txt`, and so on. Write each part as soon as it's translated. Never read the `.srt` directly (twice the tokens due to IDs/timestamps); no need for `split`.
+   - Progress: `python tools/srt_tools.py parts workspace/cleaned/<file>.srt workspace/work/<file>/<code>` shows done, partial (missing, extra, duplicate IDs, empty blocks) and pending parts, and prints the `text` command for the next part. No checklist file needed: the tool checks the part files directly, so it never drifts. If interrupted (connection lost, session ended): run it, read `summary.md` and `notes.<code>.md`, reread the last ~10 blocks of the previous part, both source and translation (`pair` doesn't work before merging; read the source with `text` and the end of the previous part file), then continue. Translating in one go, the previous part is still in context; don't reread.
+   - When `parts` reports all done: `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<code> workspace/trans/<file>.<code>.srt --cleanup`. `--cleanup` deletes the parts folder after a successful merge so `workspace/trans/<file>.<code>.srt` is the only copy; from then on every edit (including review fixes) goes directly into that file.
+6. **Validate**: `python tools/srt_tools.py validate workspace/cleaned/<file>.srt workspace/trans/<file>.<code>.srt --target <code>`. Must PASS. Fix every "còn sót chữ gốc" or "có Markdown" warning; for "block giống hệt bản gốc" check with `diff` (names, sounds, numbers may legitimately be identical).
+7. **Glossary**: `python tools/srt_tools.py check-glossary workspace/cleaned/<file>.srt workspace/trans/<file>.<code>.srt --target <code>`. Fix every `x` violation, except false positives (term phrased differently but matching the glossary's intent): list those in the report. Rerun `validate` afterwards.
+8. **Self-check**: reread the translation with `text`, looking for address slips, inconsistent names, awkward sentences.
 
-## Quy tắc chung
+## General rules
 
-**Giữ cấu trúc**: chỉ thay phần chữ. ID, timestamp, thứ tự và số block giữ nguyên tuyệt đối.
+**Keep structure**: replace only text. IDs, timestamps, order and block count stay exactly the same.
 
 ```
 123
@@ -81,26 +83,26 @@ Chữ gốc
 Chữ đã dịch
 ```
 
-**Câu trải qua nhiều block**: hiểu và dịch theo cả câu, rồi chia bản dịch về lại đúng các block đó, sao cho mỗi block khớp với phần lời đang được nói trong khoảng thời gian của nó và đọc được tương đối độc lập. Không dịch từng mảnh rời rạc, vì trật tự từ giữa các ngôn ngữ khác nhau sẽ làm câu vô nghĩa. Ví dụ (Trung → Việt):
+**Sentences spanning blocks**: understand and translate the whole sentence, then split it back across those blocks so each matches what is spoken in its time range and reads fairly independently. Don't translate fragments in isolation; word order differs between languages and the result becomes nonsense. Example (zh → vi):
 
 ```
 45  如果你明天还是不来的话          →  Nếu mai cậu vẫn không đến
 46  我就自己一个人去了              →  thì tớ sẽ tự đi một mình đấy.
 ```
 
-**Độ dài**: phụ đề phải đọc kịp. Mỗi block tối đa 2 dòng, ưu tiên cách diễn đạt gọn. Có thể lược từ thừa, nhưng không được bỏ ý.
+**Length**: subtitles must be readable in time. Max 2 lines per block, prefer concise phrasing. Trim filler words, never meaning.
 
-**Trung thành**: không thêm thông tin, không bỏ ý, không chú thích hay giải thích trong phụ đề, không thêm dòng kiểu "Dịch bởi...". Tiếng kêu, tiếng cười có thể giữ hoặc chuyển sang cách viết tự nhiên của ngôn ngữ đích.
+**Faithfulness**: no added information, no dropped meaning, no notes or explanations in the subtitle, no "Dịch bởi..." lines. Sounds and laughter may be kept or rendered naturally in the target language.
 
-**Thuật ngữ kỹ thuật**: tên phần mềm, menu, công cụ, phím tắt tuân theo mục "Thuật ngữ kỹ thuật, phần mềm, phím tắt" trong file references của ngôn ngữ đích.
+**Technical terms**: software, menus, tools, shortcuts follow the "Technical terms, software, shortcuts" section of the target language reference.
 
-**Không chắc nghĩa**: chọn cách hiểu hợp ngữ cảnh nhất, dịch bình thường, ghi ID vào báo cáo. Không để chữ gốc hay dấu [?] trong file.
+**Unsure of meaning**: choose the most plausible reading in context, translate normally, list the ID in the report. Never leave source text or [?] in the file.
 
-## Báo cáo khi xong
+## Report
 
-Ngắn gọn trong chat:
+Brief, in chat:
 
-- File, ngôn ngữ, số block, kết quả validate.
-- Các quyết định quan trọng đã tự đưa ra (lấy từ `notes.<mã>.md`): tên, xưng hô, thuật ngữ.
-- Những chỗ không chắc (kèm ID).
-- Đề xuất đưa các quyết định trong `notes.<mã>.md` vào `workspace/glossary.md` với trạng thái ❓ để lần sau dùng lại. Chỉ ghi khi người dùng đồng ý.
+- File, language, block count, validate result.
+- Key decisions you made (from `notes.<code>.md`): names, address, terms.
+- Uncertain spots (with IDs).
+- Propose moving decisions from `notes.<code>.md` into `workspace/glossary.md` with status `?` for reuse. Write only if the user agrees.
