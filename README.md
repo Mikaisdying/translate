@@ -41,13 +41,13 @@ subtitle-kit/
 2. `/clean` → kiểm tra vài chỗ trong `workspace/cleaned/`.
 3. `/glossary` → duyệt `workspace/glossary.md`, đổi `?` thành `x` cho dòng đồng ý.
 4. `/trans-vi` hoặc `/trans-en`.
-5. `/review` → subagent tìm lỗi, agent trình bày và hỏi bạn muốn sửa gì; trả lời VD "sửa lỗi nghiêm trọng", "sửa ID 57, 60", "ID 61 sửa thành ...". Danh sách lỗi chỉ nằm trong chat, không tạo file.
+5. `/review` → subagent tìm lỗi, agent trình bày và hỏi bạn muốn sửa gì; trả lời VD "sửa lỗi nghiêm trọng", "sửa ID 57, 60", "ID 61 sửa thành ...". Danh sách lỗi lưu ở `workspace/work/<tên>/review.<mã>.md`, mỗi mục có trạng thái (`pending`, `unsure`, `fixed`, `skipped`); `status` cho biết bài nào còn mục chờ.
 
 Có thể thêm tên file sau lệnh, VD `/trans-en ep03.srt`. Hoặc nói thường: "dịch ep03 sang tiếng Việt".
 
-Lệnh `/review` có ba chế độ: mặc định tìm lỗi rồi hỏi bạn (không tự sửa), `/review sửa` để sửa các mục bạn chọn từ danh sách vừa trình bày (có sao lưu trước; ở phiên mới thì review lại trước), `/review chéo` để kiểm tra nhất quán giữa các bài. VD `/review ep03.vi.srt`, `/review sửa ep03.vi.srt chỉ lỗi nghiêm trọng`.
+Lệnh `/review` có ba chế độ: mặc định tìm lỗi rồi hỏi bạn (không tự sửa), `/review sửa` để sửa các mục bạn chọn trong file review (có sao lưu trước; làm được ở phiên mới, không cần review lại), `/review chéo` để kiểm tra nhất quán giữa các bài. VD `/review ep03.vi.srt`, `/review sửa ep03.vi.srt chỉ lỗi nghiêm trọng`.
 
-**Subagent**: việc chỉ đọc và báo cáo được giao cho subagent với context sạch: tìm lỗi bản dịch (`/review`), soát bản clean (bước cuối của `/clean`), đọc từng bài để lập glossary (`/glossary`). Subagent không sửa file nào; sửa gì là do bạn chọn. Có thể chỉ định model cho subagent, VD `/review ep03 bằng sonnet`; tốt nhất là model khác với model đã dịch, vì cùng một model thường lặp lại đúng cách hiểu sai của chính nó. Công cụ không có subagent thì agent tự làm trong phiên hiện tại.
+**Subagent**: việc chỉ đọc và báo cáo được giao cho subagent với context sạch: tìm lỗi bản dịch (`/review`), soát bản clean (bước cuối của `/clean`), đọc từng bài để lập glossary (`/glossary`). Subagent không sửa phụ đề hay glossary, chỉ ghi file kết quả vào `workspace/work/`; sửa gì là do bạn chọn. Có thể chỉ định model cho subagent, VD `/review ep03 bằng sonnet`; tốt nhất là model khác với model đã dịch, vì cùng một model thường lặp lại đúng cách hiểu sai của chính nó. Công cụ không có subagent thì agent tự làm trong phiên hiện tại.
 
 ### Quy trình cho khóa học
 
@@ -57,7 +57,7 @@ Với khóa học nhiều bài, thuật ngữ và xưng hô phải thống nhấ
 2. `/glossary` rồi duyệt, đổi `?` thành `x`.
 3. Dịch thử 2–3 bài đầu.
 4. `/review` các bài đó.
-5. Chỉnh `workspace/glossary.md` theo những gì review phát hiện (thuật ngữ dịch lệch, xưng hô).
+5. Review sẽ hỏi có đưa đề xuất glossary (thuật ngữ dịch lệch, tên, xưng hô) vào `workspace/glossary.md` không; chọn những dòng muốn thêm (ghi với `?`), rồi duyệt và đổi thành `x`.
 6. Dịch phần còn lại.
 7. `/review chéo` để bắt thuật ngữ không nhất quán giữa các bài, rồi `/review sửa` từng file nếu cần.
 

@@ -344,6 +344,24 @@ class ToolTest(unittest.TestCase):
         self.assertIn("FAIL", lines["ep01"])
         self.assertRegex(lines["ep02"], r"ep02\s+có\s+—")
 
+    def test_status_review(self):
+        self.write("workspace/cleaned/ep01.srt", srt("A"))
+        self.write("workspace/trans/ep01.vi.srt", srt("Á"))
+        self.write("workspace/trans/ep01.en.srt", srt("A"))
+        self.write("workspace/work/ep01/review.vi.md",
+                   "### ID 1 | Nghiêm trọng | Sai nghĩa | pending\n- Gốc: A\n"
+                   "### ID 2 | Nhẹ | Văn phong | fixed\n"
+                   "### ID 3 | Trung bình | Glossary | unsure\n"
+                   "### ID 4 | Nhẹ | Văn phong | chờ duyệt\n")
+        self.write("workspace/work/ep01/review.en.md",
+                   "### ID 1 | Nhẹ | Văn phong | skipped\n### ID 2\n- Status: skipped\n")
+        later = time.time() + 10
+        os.utime(self.dir / "workspace/trans/ep01.en.srt", (later, later))
+        code, out = self.run_tool("status")
+        line = next(l for l in out.splitlines() if l.startswith("ep01"))
+        self.assertIn("review: 3 chờ", line)
+        self.assertIn("review xong (cũ)", line)
+
 
 if __name__ == "__main__":
     unittest.main()

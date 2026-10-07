@@ -1,90 +1,128 @@
 ---
 name: review-subtitle
-description: Review, soát lỗi, kiểm tra, rà lại bản dịch phụ đề SRT trong workspace/trans/ so với bản gốc trong workspace/cleaned/ và theo workspace/glossary.md, tìm lỗi dịch sai nghĩa, sai thao tác, sai thuật ngữ, lệch xưng hô (giao cho subagent), trình bày cho người dùng chọn, rồi sửa đúng những mục người dùng chọn, hoặc kiểm tra nhất quán chéo nhiều bài. Dùng skill này mỗi khi người dùng nói review, soát lỗi, kiểm tra bản dịch, rà lại sub, check bản dịch, sửa theo review, review chéo, hoặc gõ /review, kể cả khi họ chỉ nói "dịch xong rồi, xem giúp có lỗi không".
+description: Review SRT translations in workspace/trans/ against the source in workspace/cleaned/ and workspace/glossary.md, finding mistranslations, wrong instructions, wrong terms and address slips (delegated to a subagent), presenting them for the user to choose, then fixing exactly the chosen items, or cross-checking consistency across episodes. Use whenever the user says review, soát lỗi, kiểm tra bản dịch, rà lại sub, check bản dịch, sửa theo review, review chéo, or types /review, even if they only say "dịch xong rồi, xem giúp có lỗi không".
 ---
 
 # Review Subtitle
 
-Review chia làm hai phần tách biệt:
+Review has two separate parts:
 
-1. **Tìm lỗi**: giao cho subagent. Subagent bắt đầu với context sạch, không mang theo cách hiểu của phiên đã dịch, nên thấy lỗi khách quan hơn. Subagent chỉ đọc và trả danh sách lỗi trong câu trả lời, không tạo file, không sửa bản dịch.
-2. **Quyết định sửa**: thuộc về người dùng. Bạn trình bày kết quả, người dùng chọn có sửa không và sửa những mục nào, rồi bạn chỉ sửa đúng những mục đó.
+1. **Finding errors**: delegated to a subagent (except self-review, below). A subagent starts with a clean context, free of the translating session's interpretation, so it sees errors more objectively. It only reads and writes the error list to the episode's review file; it never edits the translation.
+2. **Deciding fixes**: belongs to the user. You present results, the user chooses whether and what to fix, and you fix exactly those items.
 
-## Chế độ
+The review file stores results across steps and sessions: review one episode, fix another, come back tomorrow, all from the file, independent of chat.
 
-Xác định từ lời người dùng:
+Talk to the user in Vietnamese.
 
-- **Báo lỗi** (mặc định): tìm lỗi, trình bày, hỏi người dùng muốn sửa gì. Không sửa `workspace/trans/`.
-- **Sửa** ("sửa", "fix", "sửa theo review"): áp dụng các mục người dùng chọn từ danh sách lỗi đã trình bày trong phiên này.
-- **Chéo bài** ("chéo", "cross", "toàn khóa"): kiểm tra nhất quán giữa nhiều bài. Không sửa `workspace/trans/`.
+## Modes
 
-Không rõ thì dùng chế độ báo lỗi.
+From the user's words:
 
-## Thư mục
+- **Report** (default): find errors, write the review file, present, ask what to fix. Don't modify `workspace/trans/`.
+- **Fix** ("sửa", "fix", "sửa theo review"): apply the items the user chose from the review file.
+- **Cross-check** ("chéo", "cross", "toàn khóa"): check consistency across episodes. Don't modify `workspace/trans/`.
 
-- Bản dịch `workspace/trans/<tên>.<mã>.srt`, bản gốc `workspace/cleaned/<tên>.srt`. Ngôn ngữ lấy từ đuôi file (`.vi.srt` → vi); đuôi lạ thì hỏi.
-- Không có file review: danh sách lỗi nằm trong câu trả lời của subagent và được trình bày trong chat.
-- Không bao giờ sửa `workspace/cleaned/`, `workspace/raw/`, dòng ✅ trong `workspace/glossary.md`. Chỉ chế độ sửa mới được sửa `workspace/trans/`.
-- Lệnh chạy từ thư mục gốc dự án: `python tools/srt_tools.py ...` (hoặc `python3`).
+Unclear → report mode.
 
-## Giao việc cho subagent
+## Files
 
-Dùng công cụ subagent của môi trường đang chạy (VD công cụ Agent/Task trong Claude Code, `runSubagent` trong VS Code Copilot). Nếu người dùng chỉ định model cho review (VD "review bằng sonnet") và công cụ cho chọn model subagent, dùng model đó; tốt nhất là model khác với model đã dịch.
+- Translation `workspace/trans/<name>.<code>.srt`, source `workspace/cleaned/<name>.srt`. Language from the suffix (`.vi.srt` → vi); unknown suffix → ask.
+- Review file: `workspace/work/<name>/review.<code>.md`, format per `references/find-errors.md`: one entry per error with heading `### ID 57 | Nghiêm trọng | Sai thao tác | pending` and lines Gốc, Hiện tại, Đề xuất, Lý do, enough to fix in another session. Status (end of heading):
+  - `pending`, `unsure`: written by the subagent, not handled yet.
+  - `fixed`: applied in fix mode.
+  - `skipped`: user chose not to fix.
+  `status` shows pending items per episode (`review: N chờ`), and `(cũ)` if the translation changed after the review file was last updated.
+- Never modify `workspace/cleaned/`, `workspace/raw/`, or `x` rows in `workspace/glossary.md`. Only fix mode may modify `workspace/trans/`.
+- Run from the project root: `python tools/srt_tools.py ...` (or `python3`).
 
-Lời giao việc chỉ gồm những gì subagent cần, không kèm nhận xét hay phỏng đoán của bạn về bản dịch, để giữ góc nhìn độc lập:
+## Delegating to a subagent
+
+Use the environment's subagent tool (Agent/Task in Claude Code, `runSubagent` in VS Code Copilot). If the user names a model for review (e.g. "review bằng sonnet") and the tool allows choosing, use it; ideally a different model from the one that translated.
+
+The task message contains only what the subagent needs, none of your opinions or guesses about the translation, to keep its view independent:
 
 ```
-Đọc và làm đúng theo .agent/skills/review-subtitle/references/find-errors.md
-Bản gốc: workspace/cleaned/ep03.srt
-Bản dịch: workspace/trans/ep03.vi.srt
-Ngôn ngữ: vi
-Phạm vi: toàn bộ
+Read and follow .agent/skills/review-subtitle/references/find-errors.md
+Source: workspace/cleaned/ep03.srt
+Translation: workspace/trans/ep03.vi.srt
+Language: vi
+Scope: all
+Result file: workspace/work/ep03/review.vi.md
 ```
 
-Mỗi file một subagent; nhiều file thì chạy song song vài file một lúc.
+The subagent writes the file and returns only the path and total line, so your context doesn't hold every episode's error list.
 
-File dài (xem số block bằng `info`): trên khoảng 400 block thì chia thành các khoảng liền nhau, mỗi khoảng khoảng 300-350 block (VD 1028 block → `block 1-343`, `block 344-686`, `block 687-1028`), mỗi khoảng một subagent chạy song song, ghi `Phạm vi: block N-M`. Mỗi subagent có context ngắn nên đọc kỹ hơn, và không phải mang theo cả nghìn block đã đọc qua mỗi lượt gọi lệnh. Kiểm tra chéo dùng `references/cross-check.md`, giao một subagent cho mỗi ngôn ngữ kèm danh sách file.
+One subagent per file; several files run in parallel a few at a time.
 
-Môi trường không có subagent: tự làm theo đúng file hướng dẫn đó trong phiên hiện tại, và nhắc người dùng một lần rằng review ở phiên mới hoặc bằng model khác sẽ khách quan hơn.
+Long files (block count from `info`): above ~400 blocks, split into consecutive ranges of ~300-350 blocks (e.g. 1028 blocks → `blocks 1-343`, `blocks 344-686`, `blocks 687-1028`), one subagent per range, run **sequentially** (next range only after the previous finishes), all writing the same `Result file: workspace/work/<name>/review.<code>.md`, no per-range files. First range: `Scope: blocks 1-343`; later ranges add `Append: yes` so the subagent merges into the existing file instead of overwriting. Each subagent has a short context, so it reads more carefully and doesn't carry a thousand blocks through every tool call. If interrupted, the `Phạm vi` line in the review file shows how far it got; continue from there. Different episodes still run in parallel; only ranges within one episode are sequential. Cross-check uses `references/cross-check.md`, one subagent per language with the file list.
 
-## Chế độ báo lỗi
+**Self-review without a subagent** when all four hold:
 
-1. **Chọn file**:
-   - Người dùng chỉ định thì làm đúng file đó.
-   - Không chỉ định: chạy `status`, liệt kê các bản dịch PASS và hỏi người dùng review bài nào (một bài, vài bài, hay tất cả). Bản dịch FAIL thì báo lỗi cấu trúc, không cần subagent.
-   - Không có `workspace/cleaned/<tên>.srt` tương ứng: báo và bỏ qua.
-   - Bài có "gốc sửa sau" trong `status`: vẫn review, nhưng nhắc người dùng rằng `workspace/cleaned/` đã đổi sau khi dịch.
-2. **Giao việc** cho subagent như trên.
-3. **Kiểm tra kết quả**: câu trả lời phải có phần tổng và các mục đúng format (ID, mức độ, gốc, hiện tại, đề xuất, lý do). Thiếu hoặc hỏng thì giao lại một lần; vẫn hỏng thì báo người dùng.
-   File đã chia khoảng: gộp các câu trả lời thành một danh sách (cộng tổng, bỏ mục trùng ở chỗ giáp ranh). Vì mỗi subagent chỉ thấy một khoảng, tự kiểm tra thêm phần nhất quán trong cả file: thuật ngữ, tên nằm trong `Đề xuất glossary` của các khoảng mà cách dịch khác nhau giữa các khoảng thì `find` trong bản dịch để đếm mỗi cách, rồi thêm một mục mức trung bình kèm cách đề xuất.
-4. **Đối chiếu nhanh**: gom ID của mọi lỗi nghiêm trọng vào một lệnh `pair <gốc> <dịch> --ids 57,63,120-121` để chắc chữ "Gốc" và "Hiện tại" khớp file thật (subagent có thể chép nhầm block). Mục không khớp thì ghi rõ khi trình bày, không tự bỏ.
-   Với mỗi mục "Lỗi ở bản gốc", tự kiểm tra trước khi đề xuất sửa `workspace/cleaned/`: xem ngữ cảnh bằng `text --from N --to M`, và chữ bị nghi sai có thể là tên đúng trên giao diện phần mềm hay thuật ngữ đúng không (VD giao diện Blender tiếng Trung gọi X-Ray là 透视, nên 透视模式 không phải lỗi ASR). Subagent chỉ đoán từ bản dịch nên dễ báo nhầm ở phần này. Khi trình bày, chia rõ mục nào bạn đồng ý sửa, mục nào nên giữ nguyên (kèm lý do).
-5. **Trình bày** trong chat, giữ nguyên format từng mục của subagent để người dùng chọn theo ID:
-   - Số lỗi theo mức độ; review nhiều file thì một bảng, mỗi file một dòng.
-   - Toàn bộ lỗi nghiêm trọng (ID, hiện tại → đề xuất, lý do ngắn).
-   - Lỗi trung bình và nhẹ: đầy đủ nếu ít (khoảng 20 mục trở xuống), nhiều hơn thì gom theo loại kèm danh sách ID; người dùng hỏi thì đưa chi tiết.
-   - Lỗi ở bản gốc và đề xuất glossary nếu có.
-6. **Hỏi người dùng** muốn làm gì, VD: sửa tất cả, chỉ lỗi nghiêm trọng, chỉ các ID cụ thể, xác nhận hoặc bỏ các mục "cần xác nhận", sửa theo đề xuất khác của chính họ, hay không sửa. Dừng ở đây, chờ trả lời.
+- Only one file, at most ~400 blocks.
+- In this session you haven't translated, cleaned or read that episode (source or translation). Your context is then as clean as a subagent's, so independence is kept while saving subagent startup cost.
+- The user didn't ask for review by another model.
+- Not cross-check mode.
 
-## Chế độ sửa
+Otherwise delegate as above. When self-reviewing, follow `references/find-errors.md` and write the review file like a subagent would, then continue from step 4 of report mode; skip the `pair --ids` check in step 5 (no subagent copy errors), but still verify "Lỗi ở bản gốc" items yourself.
 
-Chỉ chạy khi người dùng đã nói rõ sửa những gì, dựa trên danh sách lỗi đã trình bày trong phiên này. Phiên này chưa có danh sách (VD `/review sửa ep03` ở phiên mới) thì chạy chế độ báo lỗi trước và hỏi lại, vì người dùng chưa thấy danh sách thì chưa chọn được.
+No subagent tool: do the reference file yourself in this session. If the second condition above fails, tell the user once that a review in a new session or with another model would be more objective.
 
-1. **Lấy các mục người dùng chọn** từ danh sách trong phiên. Bỏ qua mục đã sửa ở lượt trước trong phiên, và mục `cần xác nhận` mà người dùng chưa xác nhận.
-2. **Sao lưu**: `python tools/srt_tools.py archive --copy workspace/trans/<tên>.<mã>.srt` (lệnh in ra đường dẫn bản sao lưu).
-3. **Sửa đúng các block đã chọn**, theo `Đề xuất` (hoặc cách sửa người dùng đưa ra). Không nhân tiện viết lại block khác. Chỉ thay phần chữ; ID, timestamp, số block, thứ tự giữ nguyên.
-4. **Kiểm tra**: `validate ... --target <mã>` phải PASS; chạy `check-glossary` và báo vi phạm còn lại, không tự sửa ngoài phần được chọn.
-5. **Báo cáo**: `diff <bản sao lưu> workspace/trans/<tên>.<mã>.srt`, liệt kê block đã đổi (cũ → mới), các mục bỏ qua kèm lý do, và các mục còn `chờ duyệt` để người dùng chọn tiếp nếu muốn.
+## Report mode
 
-## Chế độ chéo bài
+1. **Choose files**:
+   - User named files → exactly those.
+   - None: run `status`, list PASS translations with their review state, and ask which to review (one, several, all). FAIL translations: report the structural error, no subagent needed.
+   - No matching `workspace/cleaned/<name>.srt`: report and skip.
+   - Episode marked "gốc sửa sau" in `status`: still review, but remind the user `workspace/cleaned/` changed after translation.
+   - Episode with a review file that still has pending items and isn't `(cũ)`: ask whether to continue that list (go to presenting, step 6) or review from scratch.
+2. **Archive the old review file** if any (re-review): `archive workspace/work/<name>/review.<code>.md` (moves into `workspace/work/<name>/backup/`). Never let a subagent overwrite old statuses.
+3. **Delegate** as above, or self-review if eligible.
+4. **Check the result**: the review file must have the header and well-formed entries (heading with ID, severity, type, status; lines Gốc, Hiện tại, Đề xuất, Lý do). Missing or broken → delegate again once; still broken → tell the user. If the subagent returned content in its reply because it couldn't write the file, write it to the review file yourself.
+   Split files: after the last range, `Phạm vi` must be `toàn bộ` with no duplicate entries at the boundaries. Since each subagent saw only one range, check file-wide consistency yourself: for terms and names in `Đề xuất glossary` that ranges translated differently, `find` in the translation to count each variant, then add a medium-severity entry with the proposed form.
+5. **Quick verification**: put the IDs of all serious errors into one `pair <source> <translation> --ids 57,63,120-121` call to confirm "Gốc" and "Hiện tại" match the real file (subagents can copy the wrong block). For mismatches, add `- Đối chiếu: không khớp file thật (...)` to that entry and say so when presenting; don't drop it yourself.
+   For each "Lỗi ở bản gốc" item, verify before proposing a change to `workspace/cleaned/`: view context with `text --from N --to M`, and consider whether the suspect word is a correct software UI name or term (e.g. Blender's Chinese UI calls X-Ray 透视, so 透视模式 is not an ASR error). Subagents only guess from the translation and often misreport here. Record your verdict (fix / keep, with reason) in that entry of the review file.
+6. **Present** in chat from the review file, keeping each entry's format (including status) so the user can choose by ID, and give the file path for the full view:
+   - Error counts by severity; several files → one table, one row per file.
+   - All serious errors (ID, current → proposed, short reason).
+   - Medium and minor: in full if few (~20 or fewer), otherwise grouped by type with ID lists; give details on request.
+   - Source errors and glossary proposals, if any.
+   Several episodes: you may present and ask one episode at a time; the rest stay in their files.
+7. **Ask the user** what to do, e.g. fix all, only serious, specific IDs, confirm or drop `unsure` items, apply their own alternative, or fix nothing. If glossary proposals are pending, also ask which rows to add to `workspace/glossary.md` (see [Writing proposals to the glossary](#writing-proposals-to-the-glossary)). Stop here and wait.
 
-1. Chọn các bài có bản dịch ngôn ngữ đó (hoặc các bài người dùng chỉ định).
-2. Giao subagent theo `references/cross-check.md`.
-3. Trình bày: thuật ngữ dịch nhiều kiểu (cách đề xuất cho mỗi cái), chỗ lệch xưng hô, đề xuất glossary. Hỏi người dùng có muốn đưa đề xuất vào `workspace/glossary.md` (trạng thái ❓) không. Muốn sửa bản dịch thì sau khi chốt glossary, chạy chế độ báo lỗi cho từng bài; `check-glossary` sẽ chỉ ra chỗ cần sửa.
+## Fix mode
 
-## Không được làm
+Run only when the user has said what to fix. The list comes from `workspace/work/<name>/review.<code>.md`, so it works in a different session from report mode. No review file → run report mode first and ask again, since the user can't choose without seeing the list. User says "sửa" without naming items → present pending items (step 6 above) and ask.
 
-- Không sửa `workspace/cleaned/` hay `workspace/raw/`. Lỗi ở bản gốc thì báo người dùng.
-- Không sửa `workspace/trans/` ngoài chế độ sửa, và trong chế độ sửa không sửa ngoài các mục người dùng chọn.
-- Không đưa ghi chú, Markdown hay giải thích vào file phụ đề.
-- Không sửa hay xóa dòng ✅ trong glossary; thấy có vẻ sai thì nêu trong báo cáo.
+1. **Collect the chosen items** from the review file. Skip `fixed` or `skipped` items, and `unsure` items the user hasn't confirmed.
+2. **Verify**: if the review file is `(cũ)` in `status` (translation changed after review), run `pair <source> <translation> --ids <chosen IDs>` first; items whose `Hiện tại` no longer matches the real file are not fixed; tell the user.
+3. **Back up**: `python tools/srt_tools.py archive --copy workspace/trans/<name>.<code>.srt` (prints the backup path).
+4. **Fix exactly the chosen blocks**, per `Đề xuất` (or the user's own fix). Don't rewrite other blocks along the way. Replace text only; IDs, timestamps, block count and order stay.
+5. **Check**: `validate ... --target <code>` must PASS; run `check-glossary` and report remaining violations, fixing nothing beyond the chosen items.
+6. **Update the review file**: applied items → change the status at the end of the heading to `fixed` (if the user gave a different fix, update the `Đề xuất` line to match); items the user declined → `skipped`. Unmentioned items stay. Change only those lines, never rewrite the whole file.
+7. **Report**: `diff <backup> workspace/trans/<name>.<code>.srt`, list changed blocks (old → new), skipped items with reasons, and the number still `pending` so the user can continue choosing.
+
+## Cross-check mode
+
+1. Pick the episodes with translations in that language (or those the user names).
+2. Delegate per `references/cross-check.md`.
+3. Present: terms translated several ways (proposal for each), address inconsistencies, glossary proposals. Ask which proposals to add to `workspace/glossary.md`, then write per [Writing proposals to the glossary](#writing-proposals-to-the-glossary). To fix translations, after the glossary is settled run report mode per episode; `check-glossary` will point out what to fix.
+
+## Writing proposals to the glossary
+
+Shared by report and cross-check modes. Write only the rows the user chose ("thêm hết" = every pending proposal).
+
+1. No `workspace/glossary.md` → copy `.agent/skills/build-glossary/assets/glossary.template.md`.
+2. One row per proposal in the right table: people → `2. Nhân vật`, address → `3. Xưng hô`, terms, menus, places, repeated phrases → `4. Thuật ngữ`. Status always `?`. Fill the reviewed language's column (vi → `Tiếng Việt`, en → `English`), leave the other empty if unknown; `Ghi chú` names the source, e.g. `review ep03.vi`.
+3. Term already in the glossary:
+   - `x` row: don't touch it; tell the user the proposal differs from the approved form.
+   - `?` row: fill only empty cells; if a cell has a different value, ask the user which to keep, never overwrite.
+4. Add or change only those rows; never reorder or rewrite other parts of the glossary.
+5. Mark the review file so later sessions don't ask again: append `— added` or `— skipped` (user declined) to each proposal line under `## Đề xuất glossary`. Cross-check mode has no review file; skip this step.
+6. Report the rows added and remind the user to change `?` to `x` on accepted rows so clean and translate must follow them. New `?` rows don't make the current translation wrong; to fix translations per the glossary, after switching to `x`, `check-glossary` points out what to fix.
+
+## Never
+
+- Modify `workspace/cleaned/` or `workspace/raw/`. Report source errors to the user.
+- Modify `workspace/trans/` outside fix mode, or beyond the user's chosen items in fix mode.
+- Put notes, Markdown or explanations into subtitle files.
+- Edit or delete `x` glossary rows; if one looks wrong, mention it in the report. Only add or update `?` rows the user chose.

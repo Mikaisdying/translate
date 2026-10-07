@@ -813,6 +813,14 @@ def cmd_status(a):
             cell = verdict(c, t, code)
             if c.stat().st_mtime > t.stat().st_mtime:
                 cell += " · gốc sửa sau"
+            r = WORK / n / f"review.{code}.md"
+            if r.exists():
+                body = r.read_text(encoding="utf-8", errors="replace")
+                pending = len(re.findall(r"^(?:###.*\|\s*|- (?:Status|Trạng thái):\s*)(?:pending|unsure|chờ duyệt|cần xác nhận)\s*$",
+                                         body, re.M | re.I))
+                cell += f" · review: {pending} chờ" if pending else " · review xong"
+                if t.stat().st_mtime > r.stat().st_mtime:
+                    cell += " (cũ)"
             row.append(cell)
         rows.append(row)
 
@@ -822,7 +830,9 @@ def cmd_status(a):
         if i == 0:
             print("  ".join("-" * w for w in widths))
     print("\nPASS/FAIL: kết quả validate so với bước trước. "
-          "\"gốc sửa sau\": cleaned/ đổi sau khi dịch, nên xem lại bản dịch.")
+          "\"gốc sửa sau\": cleaned/ đổi sau khi dịch, nên xem lại bản dịch.\n"
+          "\"review: N chờ\": số mục chưa xử lý trong workspace/work/<tên>/review.<mã>.md; "
+          "\"(cũ)\": bản dịch đổi sau lần cập nhật file review cuối.")
     return 0
 
 
