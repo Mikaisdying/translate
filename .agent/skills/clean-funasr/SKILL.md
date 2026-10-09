@@ -22,11 +22,12 @@ Talk to the user in Vietnamese.
 - None named: every `workspace/raw/*.srt` without a counterpart in `workspace/cleaned/`. Skip already-cleaned files unless asked to redo.
 - Redoing a cleaned file: first archive the old one with `python tools/srt_tools.py archive workspace/cleaned/<file>.srt workspace/work/<file>/cleaned` (moves into `workspace/work/<file>/backup/`) so old parts don't get merged in. Tell the user that existing translations in `workspace/trans/` were based on the old cleaned version.
 - One file at a time: finish a file (up to handing the audit to a subagent) before the next.
+- **Session budget**: every turn resends the whole context, so a long session costs more and degrades at the end. At most one file per session, and in a long file stop after about 500 blocks (5 parts) worked in this session, at a part boundary. Then tell the user what's done and ask them to start a new session (`/clear`) and say "clean tiếp"; the next session resumes via `parts` (see Progress). A file with ≤ 150 blocks may be followed by another in the same session.
 
 ## Per-file procedure
 
 1. **Check format**: `python tools/srt_tools.py info workspace/raw/<file>.srt`. On a format error, stop and tell the user. Never guess-fix structure; a wrong ID/timestamp shifts the whole subtitle.
-2. **Read glossary**: `workspace/glossary.md` if present, especially sections 1 (general), 2 (characters), 4 (terms), 5 (ASR errors). `x` rows are mandatory; `?` rows are hints. An empty glossary is fine.
+2. **Read glossary**: `python tools/srt_tools.py glossary --section 1,2,4,5` prints sections 1 (general), 2 (characters), 4 (terms), 5 (ASR errors) compactly; don't read `workspace/glossary.md` itself. `x` rows are mandatory; `?` rows are hints. An empty glossary is fine.
 3. **Understand the content first**: many ASR errors are only recognizable once you know the topic, but never read the whole file twice (one skim, one pass while fixing).
    - ≤ 150 blocks: skip this step, read directly in step 4.
    - Longer: delegate a summary to a subagent with a task message of only `Read and follow .agent/skills/clean-funasr/references/summarize.md` and `File: workspace/raw/<file>.srt`. Save its reply verbatim to `workspace/work/<file>/summary.md`; the translate step reuses it instead of rereading the file. No subagent tool: skim once with `text` and write `summary.md` yourself using that template.
@@ -34,7 +35,7 @@ Talk to the user in Vietnamese.
    For unchanged blocks write `ID | =` (keep original text) instead of copying the sentence: every ID must be present, but only rewrite blocks you actually fix. This is the most token-expensive part of cleaning, so don't touch a block just to polish it (see "Incidental fixes").
    - ≤ 150 blocks: `python tools/srt_tools.py text workspace/raw/<file>.srt`, write `workspace/work/<file>/cleaned.txt`, then `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned.txt workspace/cleaned/<file>.srt`.
    - Longer: work in 100-block parts. Part 1 = blocks 1-100: `python tools/srt_tools.py text workspace/raw/<file>.srt --from 1 --to 100`, write `workspace/work/<file>/cleaned/part_001.txt`; part 2 = 101-200 → `part_002.txt`, and so on. Write each part as soon as it's done. Never read the `.srt` directly (twice the tokens due to IDs/timestamps); no need for `split`.
-   - Progress: `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` shows done, partial and pending parts and prints the `text` command for the next part. If interrupted: run it, read `summary.md`, reread the last ~10 blocks of the previous part with `text` for continuity, then continue. Working in one go, the previous part is still in context; don't reread.
+   - Progress: `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` shows done, partial and pending parts and prints the `text` command for the next part. If interrupted: run it, read `summary.md` if present, reread the last ~10 blocks of the previous part with `text` for continuity, then continue. Working in one go, the previous part is still in context; don't reread.
    - When `parts` reports all done: `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned workspace/cleaned/<file>.srt --cleanup`. `--cleanup` deletes the parts folder after a successful merge; from then on edit `workspace/cleaned/<file>.srt` directly.
 5. **Validate**: `python tools/srt_tools.py validate workspace/raw/<file>.srt workspace/cleaned/<file>.srt`. Must PASS. On FAIL, fix the reported spots and rerun. Never report done before PASS.
 6. **Approved ASR errors**: `python tools/srt_tools.py check-asr workspace/cleaned/<file>.srt` lists leftover `x` ASR errors from glossary section 5. Fix all, except where context shows the word is correct here (note those in the report).
@@ -46,7 +47,7 @@ Talk to the user in Vietnamese.
    Cleaned: workspace/cleaned/<file>.srt
    ```
 
-   The subagent only reads and returns, in its reply, spots that look over-edited, meaning-changed or inconsistent; it creates no files. Add none of your own comments, to keep its view independent. You may start the next file while waiting. No subagent tool: do `audit.md` yourself.
+   The subagent only reads and returns, in its reply, spots that look over-edited, meaning-changed or inconsistent; it creates no files. Add none of your own comments, to keep its view independent. No subagent tool: do `audit.md` yourself.
    Don't apply audit results yourself: put them in the final report for the user to choose (below). After the user chooses, fix exactly those items in `workspace/cleaned/<file>.srt` and rerun `validate`. In a new session without the list, rerun the audit.
 
 ## Allowed fixes

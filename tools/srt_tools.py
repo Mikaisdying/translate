@@ -20,6 +20,7 @@ Lệnh:
                                         In song song "ID | gốc | dịch" để đối chiếu (dừng nếu lệch số block)
   check-glossary SRC DST --target vi|en [--glossary workspace/glossary.md] [--from N] [--to M]
                                         Báo block có thuật ngữ `x` trong glossary mà bản dịch không dùng
+  glossary [--section 1,2,4,5]          In glossary (bỏ chú thích), chỉ các mục cần dùng để đỡ tốn token
   lint     SRC DST [--from N] [--to M] [--cps 20]
                                         Báo chỗ nghi lỗi máy phát hiện được: số, tổ hợp phím, chuột trái/phải,
                                         chữ Latin trong gốc (tên phần mềm, menu) bị mất, đọc quá nhanh
@@ -442,6 +443,48 @@ def load_approved_rows(path, src_col, dst_col, approved_only=True):
         if src_opts and dst_opts:
             terms.append((row[src_col], src_opts, dst_opts))
     return terms
+
+
+def cmd_glossary(a):
+    path = Path(a.glossary)
+    if not path.exists():
+        print(f"Chưa có {path.as_posix()}, coi như glossary trống.")
+        return 0
+    try:
+        content = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as e:
+        print(f"[LỖI] Không đọc được {path}: {e}")
+        return 1
+    content = re.sub(r"<!--.*?-->\n?", "", content, flags=re.S)
+    want = None
+    if a.section:
+        if not re.fullmatch(r"\s*\d+(-\d+)?(\s*,\s*\d+(-\d+)?)*\s*", a.section):
+            print(f"[LỖI] --section sai: {a.section} (VD 1,2,4 hoặc 1-4)")
+            return 1
+        want = {int(i) for i in parse_ids(a.section)}
+    out, keep, found = [], want is None, set()
+    for line in content.split("\n"):
+        m = re.match(r"^##\s+(\d+)\.", line)
+        if m:
+            n = int(m.group(1))
+            keep = want is None or n in want
+            if keep:
+                found.add(n)
+        elif re.match(r"^#\s", line):
+            continue  # tiêu đề "# Glossary"
+        if keep:
+            if line.strip().startswith("|"):  # bỏ khoảng trắng căn cột, đỡ tốn token
+                cells = table_cells(line)
+                if all(re.fullmatch(r":?-{3,}:?", c.replace(" ", "")) for c in cells if c):
+                    cells = ["---"] * len(cells)
+                line = "| " + " | ".join(cells) + " |"
+            out.append(line)
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    if text:
+        print(text)
+    if want and want - found:
+        print(f"\n(Không có mục {', '.join(map(str, sorted(want - found)))} trong {path.as_posix()})")
+    return 0
 
 
 def joined(block):
@@ -878,6 +921,11 @@ def main():
     s.add_argument("--from", dest="start", type=int, default=0, help="block thứ N (từ 1)")
     s.add_argument("--to", dest="end", type=int, default=0, help="đến block thứ M")
     s.set_defaults(fn=cmd_check_glossary)
+
+    s = sub.add_parser("glossary")
+    s.add_argument("--section", help="chỉ in các mục này, VD 1,2,4,5 hoặc 1-4 (mặc định: tất cả)")
+    s.add_argument("--glossary", default=str(GLOSSARY))
+    s.set_defaults(fn=cmd_glossary)
 
     for name, fn in (("lint", cmd_lint), ("review-prep", cmd_review_prep)):
         s = sub.add_parser(name); s.add_argument("src"); s.add_argument("dst")

@@ -327,6 +327,31 @@ class ToolTest(unittest.TestCase):
         code, out = self.run_tool("archive", "workspace/work/ep01/backup")
         self.assertNotEqual(code, 0)
 
+    # ---- glossary ----
+
+    def test_glossary_sections(self):
+        self.write("workspace/glossary.md", "<!-- chú thích -->\n" + GLOSSARY)
+        code, out = self.run_tool("glossary", "--section", "5")
+        self.assertEqual(code, 0, out)
+        self.assertIn("## 5. Lỗi ASR", out)
+        self.assertIn("| photo shop | Photoshop |  | x |", out)
+        self.assertNotIn("图层 | Layer", out)
+        self.assertNotIn("chú thích", out)
+        self.assertNotIn("# Glossary", out)
+        code, out = self.run_tool("glossary")
+        self.assertIn("## 4. Thuật ngữ", out)
+        self.assertIn("## 5. Lỗi ASR", out)
+
+    def test_glossary_missing_and_bad_section(self):
+        code, out = self.run_tool("glossary", "--glossary", "khong_co.md")
+        self.assertEqual(code, 0, out)
+        self.assertIn("glossary trống", out)
+        self.write("workspace/glossary.md", GLOSSARY)
+        code, out = self.run_tool("glossary", "--section", "4,9")
+        self.assertIn("Không có mục 9", out)
+        code, out = self.run_tool("glossary", "--section", "abc")
+        self.assertEqual(code, 1, out)
+
     # ---- status ----
 
     def test_status(self):

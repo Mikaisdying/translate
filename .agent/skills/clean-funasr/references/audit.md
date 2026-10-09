@@ -6,7 +6,7 @@ The cleaned file is translated repeatedly, so a meaning-changing "fix" is more d
 
 ## Steps
 
-1. Read `workspace/glossary.md` (sections 2, 4, 5) and the "Allowed fixes" and "Never" sections of `.agent/skills/clean-funasr/SKILL.md`: those are the rules the cleaned file must follow.
+1. Read the glossary with `python tools/srt_tools.py glossary --section 2,4,5` and the "Allowed fixes" and "Never" sections of `.agent/skills/clean-funasr/SKILL.md`: those are the rules the cleaned file must follow.
 2. `python tools/srt_tools.py diff <raw> <cleaned> --loose --limit 2000` to see blocks with word changes (`--loose` ignores punctuation, whitespace, line-break and case differences; adding punctuation is allowed, no need to audit it). For context: `python tools/srt_tools.py text <cleaned> --from N --to M`.
 3. Look for:
    - **Đổi nghĩa** (meaning changed): the edit changes meaning, adds or drops content, or swaps a name for a different one.
