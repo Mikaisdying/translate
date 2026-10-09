@@ -7,5 +7,6 @@ workspace/
 .claude/skills
 .github/skills
 .agents/skills
+.gemini/skills
 
 __pycache__/

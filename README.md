@@ -76,6 +76,7 @@ Skill theo chuẩn mở Agent Skills nên dùng được ở nhiều nơi, chỉ
 | Antigravity | `.agent/skills/` (sẵn) | `/clean`, `/glossary`, `/trans-vi`, `/trans-en`, `/review` (qua workflows) |
 | VS Code + Copilot | `python tools/link_skills.py .github/skills` | `/clean-funasr`, `/build-glossary`, `/translate-subtitle vi`, `/review-subtitle` |
 | Claude Code | `python tools/link_skills.py` (tạo `.claude/skills/`) | `/clean-funasr`, `/build-glossary`, `/translate-subtitle en`, `/review-subtitle` |
+| Gemini CLI (API key) | `python tools/link_skills.py .gemini/skills`; `.gemini/settings.json` cho đọc `AGENTS.md` | nói tên skill, VD "dùng skill translate-subtitle dịch 002 sang vi" |
 
 `link_skills.py` tạo liên kết (junction trên Windows, symlink trên macOS/Linux) trỏ về `.agent/skills/`, nên sửa skill một chỗ là mọi công cụ thấy ngay; liên kết đã nằm trong `.gitignore`. Thư mục `workflows/` chỉ dành cho Antigravity; công cụ khác gọi thẳng tên skill. Đường dẫn có thể thay đổi theo phiên bản công cụ, nếu skill không hiện ra hãy kiểm tra tài liệu của công cụ đó.
 
