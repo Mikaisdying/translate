@@ -32,11 +32,8 @@ Lệnh:
                                         Tìm chuỗi trong phần chữ của nhiều file SRT (không phân biệt hoa thường)
   archive  PATH [PATH ...] [--copy]     Cất file/thư mục vào workspace/work/<tên>/backup/ kèm thời gian
   parts    SRC DIR [--size 100]         part_*.txt nào trong DIR đã xong/dở/chưa làm, và lệnh đọc phần tiếp theo
-  progress SRC DIR [--size 100] [--out FILE] [--language CODE] [--template FILE]
-                                        Tạo/cập nhật checklist tiến độ từ trạng thái part thực tế
   status                                Bảng tiến độ: bài nào đã clean, dịch, validate, review
 
-progress luôn trả mã thoát 0 khi tạo checklist thành công, kể cả còn part chưa làm.
 validate trả về mã thoát 1 nếu có LỖI (sai số block, ID, timestamp, block rỗng).
 CẢNH BÁO (sót chữ gốc, ký hiệu Markdown...) không làm hỏng lệnh nhưng cần xem lại.
 check-glossary, check-asr và lint chỉ cảnh báo, mã thoát 0 trừ khi không đọc được file
@@ -814,79 +811,6 @@ def cmd_parts(a):
     return 0 if not todo and not extra_files else 1
 
 
-def cmd_progress(a):
-    blocks, errors = read_srt(a.src)
-    if errors:
-        for e in errors:
-            print(f"[LỖI] SRC: {e}")
-        return 1
-    if a.size <= 0:
-        print("[LỖI] --size phải lớn hơn 0")
-        return 1
-
-    source = Path(a.src)
-    part_dir = Path(a.dir)
-    total = (len(blocks) + a.size - 1) // a.size
-    rows = []
-    complete = 0
-    for n in range(1, total + 1):
-        rng = blocks[(n - 1) * a.size:n * a.size]
-        part = part_dir / f"part_{n:03d}.txt"
-        state = "chưa làm"
-        if part.exists():
-            texts, problems = parse_text_file(part)
-            wanted = {b.idx for b in rng}
-            missing = wanted - set(texts)
-            extra = set(texts) - wanted
-            if not problems and not missing and not extra:
-                state = "xong"
-                complete += 1
-            else:
-                state = "có lỗi"
-        mark = "x" if state == "xong" else " "
-        rows.append(f"- [{mark}] Part {n}: blocks {rng[0].pos}-{rng[-1].pos} ({state})")
-
-    language = a.language or (part_dir.name if part_dir.name not in {"cleaned", "trans"} else "")
-    phase = a.phase or ("clean" if part_dir.name == "cleaned" else "translate")
-    if a.out:
-        out = Path(a.out)
-    elif phase == "clean":
-        out = part_dir.parent / "progress.md"
-    else:
-        suffix = f".{language}" if language else ""
-        out = part_dir.parent / f"progress{suffix}.md"
-
-    template = Path(a.template) if a.template else None
-    if template and not template.exists():
-        print(f"[LỖI] Không tìm thấy template: {template}")
-        return 1
-    if template:
-        content = template.read_text(encoding="utf-8")
-    else:
-        content = (
-            "# Progress: {{file}}\n\n"
-            "- Phase: {{phase}}\n"
-            "- Target language: {{language}}\n"
-            "- Total blocks: {{total_blocks}}\n"
-            "- Part size: {{part_size}}\n\n"
-            "## Parts\n\n{{parts}}\n"
-        )
-    values = {
-        "file": source.name,
-        "phase": phase,
-        "language": language,
-        "total_blocks": str(len(blocks)),
-        "part_size": str(a.size),
-        "parts": "\n".join(rows),
-    }
-    for key, value in values.items():
-        content = content.replace("{{" + key + "}}", value)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(content.rstrip() + "\n", encoding="utf-8")
-    print(f"Đã cập nhật {complete}/{total} phần -> {out}")
-    return 0
-
-
 LANG_RE = re.compile(r"^(?P<name>.+)\.(?P<code>[a-z]{2,3}(?:-[A-Za-z0-9]+)?)$")
 
 
@@ -1030,14 +954,6 @@ def main():
     s = sub.add_parser("parts"); s.add_argument("src"); s.add_argument("dir")
     s.add_argument("--size", type=int, default=100, help="số block mỗi phần (mặc định 100)")
     s.set_defaults(fn=cmd_parts)
-
-    s = sub.add_parser("progress"); s.add_argument("src"); s.add_argument("dir")
-    s.add_argument("--size", type=int, default=100)
-    s.add_argument("--out", help="file checklist; mặc định cạnh thư mục part")
-    s.add_argument("--language", help="mã ngôn ngữ, ví dụ vi hoặc en")
-    s.add_argument("--phase", choices=["clean", "translate"])
-    s.add_argument("--template", help="file template Markdown có placeholder {{...}}")
-    s.set_defaults(fn=cmd_progress)
 
     s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
 

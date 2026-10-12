@@ -1,6 +1,6 @@
 ---
 name: review-subtitle
-description: Review SRT translations in workspace/trans/ against the source in workspace/cleaned/ and workspace/glossary.md, finding mistranslations, wrong instructions, wrong terms and address slips (delegated to a subagent), presenting them for the user to choose, then fixing exactly the chosen items, or cross-checking consistency across episodes. Use whenever the user says review, soát lỗi, kiểm tra bản dịch, rà lại sub, check bản dịch, sửa theo review, review chéo, or types /review, even if they only say "dịch xong rồi, xem giúp có lỗi không".
+description: Use when checking, reviewing, auditing, finding translation errors, fixing reviewed items, or cross-checking consistency across episodes in subtitle translations, e.g. "review", "soát lỗi", "kiểm tra bản dịch", "rà lại sub", "check bản dịch", "sửa theo review", "review chéo", "dịch xong rồi xem giúp", or typing /review.
 ---
 
 # Review Subtitle
@@ -37,7 +37,7 @@ Unclear → report mode.
 
 ## Delegating to a subagent
 
-Use the environment's subagent tool (Agent/Task in Claude Code, `runSubagent` in VS Code Copilot). If the user names a model for review (e.g. "review bằng sonnet") and the tool allows choosing, use it; ideally a different model from the one that translated.
+Delegate to a subagent (if the user specifies a model, e.g. "review bằng sonnet", use that model; ideally a different model from the one that translated).
 
 The task message contains only what the subagent needs, none of your opinions or guesses about the translation, to keep its view independent:
 

@@ -1,6 +1,6 @@
 ---
 name: clean-funasr
-description: Fix speech-recognition errors in SRT subtitles from FunASR (or other ASR like Whisper), reading workspace/raw/ and writing workspace/cleaned/, keeping IDs and timestamps, WITHOUT translating. Use when the user wants to clean, tidy, fix or normalize a fresh transcript/subtitle, even if they only say "dọn file trong raw", "fix sub", "sửa lỗi chính tả phụ đề" or type /clean.
+description: Use when cleaning, tidying, fixing ASR/speech-recognition errors, typos, or normalizing raw subtitles in workspace/raw/ before translation, or when user asks "dọn file trong raw", "fix sub", "sửa lỗi chính tả phụ đề", "chuẩn hóa phụ đề", or types /clean.
 ---
 
 # Clean FunASR
@@ -33,14 +33,13 @@ Talk to the user in Vietnamese.
    - Longer: delegate a summary to a subagent with a task message of only `Read and follow .agent/skills/clean-funasr/references/summarize.md` and `File: workspace/raw/<file>.srt`. Save its reply verbatim to `workspace/work/<file>/summary.md`; the translate step reuses it instead of rereading the file. No subagent tool: skim once with `text` and write `summary.md` yourself using that template.
 4. **Fix**: never rewrite IDs or timestamps yourself. Read text with `text`, write the fixed text to a text file, one block per line as `ID | text` (multi-line blocks joined with ` / `), then let `merge` put it back onto the original IDs and timestamps. `merge` rejects missing, extra or duplicate IDs and empty blocks.
    For unchanged blocks write `ID | =` (keep original text) instead of copying the sentence: every ID must be present, but only rewrite blocks you actually fix. This is the most token-expensive part of cleaning, so don't touch a block just to polish it (see "Incidental fixes").
-   - Before starting a long file, create/update the checklist without writing it manually: `python tools/srt_tools.py progress workspace/raw/<file>.srt workspace/work/<file>/cleaned --phase clean --template .agent/skills/clean-funasr/assets/progress.template.md`. Rerun it after each part; it derives checkboxes from the actual part files. The checklist is only a human-readable plan; the part files and `parts` command are the source of truth.
    - ≤ 150 blocks: `python tools/srt_tools.py text workspace/raw/<file>.srt`, write `workspace/work/<file>/cleaned.txt`, then `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned.txt workspace/cleaned/<file>.srt`.
    - Longer: work in 100-block parts. Part 1 = blocks 1-100: `python tools/srt_tools.py text workspace/raw/<file>.srt --from 1 --to 100`, write `workspace/work/<file>/cleaned/part_001.txt`; part 2 = 101-200 → `part_002.txt`, and so on. Write each part as soon as it's done. Never read the `.srt` directly (twice the tokens due to IDs/timestamps); no need for `split`.
-   - Progress: rerun the `progress` command and then `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` after each part. If interrupted: run both commands, read `summary.md` and `progress.md` if present, reread the last ~10 blocks of the previous part with `text` for continuity, then continue. Working in one go, the previous part is still in context; don't reread.
+   - Progress: `python tools/srt_tools.py parts workspace/raw/<file>.srt workspace/work/<file>/cleaned` shows done, partial and pending parts and prints the `text` command for the next part. If interrupted: run it, read `summary.md` if present, reread the last ~10 blocks of the previous part with `text` for continuity, then continue. Working in one go, the previous part is still in context; don't reread.
    - When `parts` reports all done, do not ask the model to concatenate the parts or construct an SRT. Let Python merge and clean up: `python tools/srt_tools.py merge workspace/raw/<file>.srt workspace/work/<file>/cleaned workspace/cleaned/<file>.srt --cleanup`. The command preserves the source IDs and timestamps, writes the final SRT, and deletes the part files only after a successful merge. From then on edit `workspace/cleaned/<file>.srt` directly.
 5. **Validate**: `python tools/srt_tools.py validate workspace/raw/<file>.srt workspace/cleaned/<file>.srt`. Must PASS. On FAIL, fix the reported spots and rerun. Never report done before PASS.
 6. **Approved ASR errors**: `python tools/srt_tools.py check-asr workspace/cleaned/<file>.srt` lists leftover `x` ASR errors from glossary section 5. Fix all, except where context shows the word is correct here (note those in the report).
-7. **Subagent audit**: delegate (Agent/Task in Claude Code, `runSubagent` in VS Code Copilot) with a task message of only:
+7. **Subagent audit**: delegate to a subagent with a task message of only:
 
    ```
    Read and follow .agent/skills/clean-funasr/references/audit.md

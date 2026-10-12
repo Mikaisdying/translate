@@ -1,6 +1,6 @@
 ---
 name: build-glossary
-description: Scan subtitle files in workspace/cleaned/ (and workspace/raw/) to draft workspace/glossary.md with characters, forms of address, terms and recurring ASR errors, marked `?` for the user to approve. Use when the user wants to create, fill, update or extend the glossary / term list for the subtitle project, or types /glossary, even if they only say "lập danh sách tên nhân vật", "làm glossary" or "chuẩn bị trước khi dịch".
+description: Use when creating, drafting, updating, or expanding workspace/glossary.md with characters, forms of address, terms, or recurring ASR errors before translation, or when user asks "lập danh sách tên nhân vật", "làm glossary", "chuẩn bị trước khi dịch", or types /glossary.
 ---
 
 # Build Glossary
@@ -22,7 +22,7 @@ Ideally after clean, before translate. Re-run when new episodes are added.
 
 ## Subagents
 
-Many files (course, series) would overflow one context. Delegate reading to subagents (Agent/Task in Claude Code, `runSubagent` in VS Code Copilot), one file or a few short files each, in parallel:
+Many files (course, series) would overflow one context. Delegate reading to subagents, one file or a few short files each, in parallel:
 
 ```
 Read and follow .agent/skills/build-glossary/references/extract.md
