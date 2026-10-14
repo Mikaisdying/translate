@@ -5,60 +5,39 @@ description: Use when creating, drafting, updating, or expanding workspace/gloss
 
 # Build Glossary
 
-Goal: a draft `workspace/glossary.md` the user can approve quickly before translating. You only propose; the user decides. A good glossary makes every later translation (by any model) use the same names and address forms.
+Goal: a draft `workspace/glossary.md` the user can approve quickly, so every later translation (by any model) uses the same names and address forms. You only propose; the user decides. Talk to the user in Vietnamese; glossary content stays in Vietnamese like the template.
 
-Talk to the user in Vietnamese. Glossary content (notes, headings) stays in Vietnamese like the template.
-
-## When
-
-Ideally after clean, before translate. Re-run when new episodes are added.
+Best run after clean, before translate; re-run when episodes are added.
 
 ## Sources
 
-- Main: `workspace/cleaned/*.srt` (correct text). If the user names files, scan only those.
-- Secondary: `python tools/srt_tools.py diff workspace/raw/<file>.srt workspace/cleaned/<file>.srt --limit 500` to find recurring ASR errors (section 5).
-- No `workspace/cleaned/` yet: scan `workspace/raw/`, and tell the user names may still be misspelled.
-- Read text with `python tools/srt_tools.py text <file>` (cheaper than raw SRT). Long files: read in chunks with `--from` / `--to`.
+- Commands: run from the project root; a short name like `text`, `pair`, `diff` means `python tools/srt_tools.py text ...` (`python3` if needed); put paths in double quotes (file names contain spaces). Commands that the tool prints are already complete: run them as is.
+- `workspace/cleaned/*.srt`, or only the files the user names. No cleaned files yet: use `workspace/raw/` and warn that names may be misspelled.
+- What to collect and how to read is in `references/extract.md`.
 
-## Subagents
+## Reading
 
-Many files (course, series) would overflow one context. Delegate reading to subagents, one file or a few short files each, in parallel:
+- Several files, or long ones: one subagent per file (or a few short files), in parallel, each with only:
 
-```
-Read and follow .agent/skills/build-glossary/references/extract.md
-Files: workspace/cleaned/ep01.srt, workspace/cleaned/ep02.srt
-Result file: workspace/work/glossary/ep01-ep02.md
-```
+  ```
+  Read and follow .agent/skills/build-glossary/references/extract.md
+  Files: workspace/cleaned/001.srt, workspace/cleaned/002.srt
+  Result file: workspace/work/glossary/001-002.md
+  ```
 
-Subagents only read and write candidates (with counts and example IDs) to their result file; only you write `workspace/glossary.md`. Merge results: sum counts, unify spellings of the same name, pick proposals, drop rare candidates, then write per "Writing workspace/glossary.md". Address forms (section 3) need the whole story: when merging, re-read a few passages with `text` in episodes where subagents noted changing relationships.
+- One or two short files, or no subagent tool: follow `references/extract.md` yourself.
 
-Only one or two short files, or no subagent tool: read per `references/extract.md` yourself and merge the same way.
-
-## What to collect
-
-1. **General info** (section 1): source language, genre, setting, desired tone. Fill only empty fields.
-2. **Characters** (section 2): every person name appearing 2+ times, with nicknames and other ways of referring to the same person. Note role, gender, relative age if inferable, since these decide address forms.
-3. **Address** (section 3): character pairs who talk a lot. From the relationship (family, teacher-student, boss-subordinate, friends, lovers, enemies) and how they address each other in the source, propose Vietnamese address forms. Note relationship changes (with IDs).
-4. **Terms** (section 4): places, organizations, titles, sects, techniques, items, domain terms, frequently repeated words and phrases. For software/tutorial videos: software names, tools, menus, panels, shortcuts, with the standard spelling (English UI names, menu paths with " > ", shortcuts like "Ctrl + Shift + S").
-5. **ASR errors** (section 5): words ASR consistently mishears the same way, from the diff.
-
-Propose both Tiếng Việt and English columns. If unsure of a translation, leave it empty and add a note.
+**Merge**: sum counts, unify spellings of the same name, drop rare candidates. Address (section 3) needs the whole story: where subagents noted changing relationships, reread those passages with `text --from N --to M`.
 
 ## Writing workspace/glossary.md
 
-- Keep the file's structure, headings and tables.
-- Every row you add has status `?`.
-- Never edit or delete `x` rows. If one looks wrong, mention it in the report.
-- Existing `?` rows: update only with clear new evidence.
-- No duplicates: check alternate spellings of the same name.
-- Quality over quantity: skip unimportant one-off names and common words anyone translates correctly.
-- If `workspace/glossary.md` does not exist, copy `assets/glossary.template.md` of this skill (any `srt_tools.py` command run from the project root also does this).
+- Missing → copy `assets/glossary.template.md` (any `srt_tools.py` command also creates it).
+- Keep its structure, headings and tables. Every added row has status `?`.
+- Never edit or delete `x` rows; mention suspicious ones in the report. Update existing `?` rows only with clear new evidence.
+- No duplicates (check alternate spellings). Clean and translate are done by LLMs: a row earns its place only if an LLM would likely get it wrong or inconsistent without it (criteria in `references/extract.md`). Every row costs tokens in every later session.
+- Fill both Tiếng Việt and English columns; unsure → leave empty with a note.
+- Cells hold exactly one chosen form (two only if usage differs, with the condition in `Ghi chú`), no pinyin. `Ghi chú`: a few words that change how to translate, or empty; no definitions.
 
 ## Report
 
-Brief, in chat:
-
-- Files scanned (and number of subagents, if any).
-- Rows added per section.
-- Key decisions for the user (usually name conventions and address between main characters), with a recommendation.
-- Remind the user: after reviewing, change `?` to `x` on accepted rows; `x` rows are mandatory for clean and translate.
+Brief, in chat: files scanned (and subagent count), rows added per section, key decisions with a recommendation (usually name conventions and address between main characters). Remind the user to change `?` to `x` on accepted rows; `x` rows are mandatory for clean and translate.

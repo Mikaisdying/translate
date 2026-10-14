@@ -7,7 +7,10 @@ Có thể nhờ agent điền nháp bằng skill build-glossary (/glossary), sau
 
 Trạng thái: `x` đã duyệt (agent phải tuân theo) | `?` đề xuất (agent tham khảo, chưa chắc)
 Ô để trống = chưa quyết định, agent tự chọn nhưng phải nhất quán trong cả file.
-Tên công cụ, menu, phím tắt cũng đưa vào mục 4; cột Tiếng Việt có thể ghi y nguyên tiếng Anh nếu muốn giữ.
+Clean và dịch do LLM làm: chỉ ghi từ mà LLM dễ dịch sai hoặc mỗi lần một kiểu (từ giữ tiếng Anh như Layer, Silhouette,
+Commission; tiếng lóng như Q版 → chibi; tên phần mềm như Clip Studio Paint; tên riêng; thuật ngữ riêng của người nói).
+Không cần từ thông thường chỉ có một cách dịch hiển nhiên (透视 → phối cảnh). Mỗi dòng đều tốn token ở mọi phiên.
+Mỗi ô ghi đúng một cách dịch đã chọn (không "A / B"), không pinyin; Ghi chú vài chữ hoặc để trống.
 -->
 
 ## 1. Thông tin chung

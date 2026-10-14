@@ -19,12 +19,12 @@ subtitle-kit/
 └── .agent/
     ├── skills/
     │   ├── clean-funasr/
-    │   │   └── references/   # audit.md (subagent soát bản clean)
+    │   │   └── references/   # summarize.md, audit.md (subagent tóm tắt, soát bản clean)
     │   ├── build-glossary/
     │   │   ├── assets/       # glossary.template.md: mẫu trống, tool tự chép thành workspace/glossary.md
     │   │   └── references/   # extract.md (subagent trích ứng viên)
     │   ├── review-subtitle/
-    │   │   └── references/   # find-errors.md, cross-check.md (cho subagent)
+    │   │   └── references/   # find-errors.md, cross-check.md (subagent); fix.md, glossary-proposals.md
     │   └── translate-subtitle/
     │       └── references/   # target-vi.md, target-en.md
     └── workflows/            # lệnh slash cho Antigravity
@@ -112,7 +112,7 @@ python tools/srt_tools.py status
 - `find` tìm trong phần chữ của nhiều file (không phân biệt hoa thường), dùng cho review chéo bài.
 - `check-asr` báo chỗ trong `workspace/cleaned/` còn sót lỗi ASR `x` ở mục 5 glossary.
 - `glossary --section 1,2,4,5` in glossary gọn (bỏ chú thích, khoảng trắng căn cột), chỉ các mục cần: clean dùng 1,2,4,5, dịch và review dùng 1-4. Các skill đọc glossary qua lệnh này thay vì đọc cả file, đỡ khoảng một nửa token.
-- `merge` ghép chữ dạng `ID | chữ` vào đúng ID, timestamp của file gốc, nên agent không phải chép lại timestamp. Nhận một file hoặc cả thư mục `part_*.txt`; thiếu, thừa, trùng ID hay block rỗng thì từ chối. `--cleanup` xóa thư mục phần sau khi ghép.
+- `merge` ghép chữ dạng `ID | chữ` vào đúng ID, timestamp của file gốc, nên agent không phải chép lại timestamp. Nhận một file hoặc cả thư mục `part_*.txt`; thiếu, thừa, trùng ID hay block rỗng thì từ chối. `--cleanup` xóa thư mục phần sau khi ghép. Đường dẫn trong `workspace/` phải đúng quy ước (`work/<tên>/cleaned[.txt]` khi clean, `work/<tên>/<mã>[.txt]` khi dịch; đích `cleaned/<tên>.srt` hoặc `trans/<tên>.<mã>.srt`), sai thì từ chối; `parts` cũng kiểm thư mục phần như vậy. `split` không ghi vào `workspace/` (clean/dịch không dùng nó).
 - `parts` liệt kê `part_*.txt` nào (mỗi phần 100 block) đã xong, dở hay chưa làm, phần thừa sót từ lần trước, và in lệnh `text` để đọc phần tiếp theo. Dùng để làm tiếp sau khi bị ngắt.
 - File dài được làm theo từng đoạn `text --from --to`, mỗi phiên tối đa một bài và khoảng 500 block; hết lượt agent dừng ở ranh giới phần và nhờ bạn mở phiên mới (`/clear`) rồi nói "clean tiếp" / "dịch tiếp". Bước clean ghi `workspace/work/<tên>/summary.md` (do subagent tóm tắt) để bước dịch không phải đọc lại cả bài.
 - `archive` chuyển file/thư mục vào `workspace/work/<tên>/backup/` kèm thời gian (`--copy` để chép, giữ bản gốc).

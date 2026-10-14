@@ -10,7 +10,8 @@ Dữ liệu nằm trong workspace/ (không đưa lên git), tự tạo khi chạ
 Lệnh:
   info     FILE                         Thống kê số block, thời lượng, lỗi định dạng
   text     FILE [--from N] [--to M]     In gọn "ID | text" (đọc nhanh, ít token)
-  split    FILE [--size 100] [--out DIR] Chia file dài thành nhiều file SRT (không cần cho clean/dịch)
+  split    FILE --out DIR [--size 100]  Chia file thành nhiều file SRT, DIR ngoài workspace/
+                                        (KHÔNG dùng cho clean/dịch: dùng parts + text)
   merge    SRC TEXT OUT [--cleanup]     Ghép chữ dạng "ID | chữ" (nhiều dòng nối bằng " / ") vào ID, timestamp của SRC;
                                         TEXT là một file hoặc thư mục part_*.txt (--cleanup: xóa thư mục sau khi ghép);
                                         dòng "ID | =" nghĩa là giữ nguyên chữ của block đó trong SRC
@@ -192,7 +193,11 @@ def cmd_split(a):
             print(f"[LỖI] {e}")
         print("Sửa lỗi định dạng trước khi chia.")
         return 1
-    out = Path(a.out) if a.out else WORK / Path(a.file).stem
+    out = Path(a.out)
+    if in_dir(out, WS) is not None:
+        print("[LỖI] split không ghi vào workspace/. Clean và dịch không dùng split: "
+              "dùng `parts` + `text --from --to` và ghi part_NNN.txt.")
+        return 1
     out.mkdir(parents=True, exist_ok=True)
     for old in out.glob("part_*.srt"):
         old.unlink()
@@ -241,6 +246,51 @@ def parse_text_file(path):
     return texts, problems
 
 
+def in_dir(path, base):
+    """Phần đường dẫn của PATH tính từ BASE, hoặc None nếu PATH không nằm trong BASE."""
+    try:
+        return Path(path).resolve().relative_to(Path(base).resolve()).parts
+    except ValueError:
+        return None
+
+
+def work_path_error(src, path, is_dir):
+    """Lỗi nếu PATH (thư mục part hoặc file chữ) không đúng chỗ quy định cho SRC:
+    raw/<tên>.srt -> work/<tên>/cleaned[.txt]; cleaned/<tên>.srt -> work/<tên>/<mã>[.txt].
+    Không kiểm SRC ngoài raw/, cleaned/."""
+    src = Path(src)
+    kind = {"raw": "cleaned", "cleaned": "<mã>"}.get(src.parent.name)
+    if kind is None or in_dir(src, WS) is None:
+        return None
+    want = f"{WORK.as_posix()}/{src.stem}/{kind}" + ("" if is_dir else ".txt")
+    rel = in_dir(path, WORK)
+    ok = rel is not None and len(rel) == 2 and rel[0] == src.stem
+    if ok:
+        last = rel[1] if is_dir else (rel[1][:-4] if rel[1].endswith(".txt") else "")
+        ok = last == "cleaned" if kind == "cleaned" else bool(LANG_RE.match(f"x.{last}"))
+    if ok:
+        return None
+    return (f"{Path(path).as_posix()} sai chỗ: với {src.as_posix()} phải là {want} "
+            f"(tên bài đầy đủ, giữ dấu cách; không tự đặt tên khác)")
+
+
+def merge_out_error(src, text, out):
+    """Lỗi nếu OUT nằm trong workspace/ mà không phải file đích quy định cho SRC."""
+    src, out = Path(src), Path(out)
+    if in_dir(out, WS) is None:
+        return None
+    if src.parent.name == "raw":
+        want = CLEANED / src.name
+    elif src.parent.name == "cleaned":
+        code = Path(text).name if Path(text).is_dir() else Path(text).stem
+        want = TRANS / f"{src.stem}.{code}.srt"
+    else:
+        return None
+    if in_dir(out, WS) == in_dir(want, WS):
+        return None
+    return f"OUT {out.as_posix()} sai: với {src.as_posix()} phải là {want.as_posix()}"
+
+
 def cmd_merge(a):
     """Ghép chữ "ID | chữ" (một file, hoặc mọi part_*.txt trong một thư mục)
     vào cấu trúc (ID, timestamp) của SRC, ghi ra OUT."""
@@ -250,6 +300,15 @@ def cmd_merge(a):
             print(f"[LỖI] SRC: {e}")
         return 1
     source = Path(a.textfile)
+    bad = [e for e in (
+        work_path_error(a.src, source, source.is_dir()) if in_dir(source, WS) is not None else None,
+        merge_out_error(a.src, source, a.out),
+    ) if e]
+    if bad:
+        for e in bad:
+            print(f"[LỖI] {e}")
+        print("Không ghi file. Dùng đúng lệnh do `parts` in ra (hoặc đúng đường dẫn trong skill).")
+        return 1
     files = sorted(source.glob("part_*.txt")) if source.is_dir() else [source]
     if not files:
         print(f"[LỖI] Không thấy part_*.txt trong {source.as_posix()}")
@@ -678,7 +737,7 @@ def cmd_review_prep(a):
     first, last = a.start or 1, min(a.end or len(src), len(src))
     print("\n## Đọc đối chiếu")
     for n in range(first, last + 1, a.size):
-        print(f"python tools/srt_tools.py pair {Path(a.src).as_posix()} {Path(a.dst).as_posix()} "
+        print(f"python tools/srt_tools.py pair {q(a.src)} {q(a.dst)} "
               f"--from {n} --to {min(n + a.size - 1, last)}")
     return 0
 
@@ -772,6 +831,10 @@ def cmd_parts(a):
             print(f"[LỖI] SRC: {e}")
         return 1
     d, size = Path(a.dir), a.size
+    bad = work_path_error(a.src, d, True)
+    if bad:
+        print(f"[LỖI] {bad}")
+        return 1
     total = (len(blocks) + size - 1) // size
     todo = []
     for n in range(1, total + 1):
@@ -804,11 +867,30 @@ def cmd_parts(a):
         print("Có phần thừa: cất bằng archive rồi làm lại.")
     elif todo:
         f, rng = todo[0]
-        print(f"Làm tiếp {f.name}: python tools/srt_tools.py text {Path(a.src).as_posix()} "
+        print(f"Làm tiếp {f.name}: python tools/srt_tools.py text {q(a.src)} "
               f"--from {rng[0].pos} --to {rng[-1].pos}")
+        print(f"  Ghi kết quả vào: {q(f)} (mỗi block một dòng `ID | chữ`), rồi đọc phần sau.")
     else:
-        print(f"Ghép: python tools/srt_tools.py merge {Path(a.src).as_posix()} {d.as_posix()} <file đích>")
+        dst = merge_target(a.src, d)
+        print(f"Ghép: python tools/srt_tools.py merge {q(a.src)} {q(d)} "
+              f"{q(dst) if dst else '<file đích>'} --cleanup")
     return 0 if not todo and not extra_files else 1
+
+
+def q(path):
+    """Đường dẫn để in trong lệnh gợi ý: dấu /, có ngoặc kép nếu chứa khoảng trắng."""
+    p = Path(path).as_posix()
+    return f'"{p}"' if re.search(r"[\s'&;()]", p) else p
+
+
+def merge_target(src, d):
+    """Đoán file đích của merge từ SRC và thư mục phần; None nếu không đoán được."""
+    src, d = Path(src), Path(d)
+    if src.parent.name == "raw" and d.name == "cleaned":
+        return CLEANED / src.name
+    if src.parent.name == "cleaned" and LANG_RE.match(f"x.{d.name}"):
+        return TRANS / f"{src.stem}.{d.name}.srt"
+    return None
 
 
 LANG_RE = re.compile(r"^(?P<name>.+)\.(?P<code>[a-z]{2,3}(?:-[A-Za-z0-9]+)?)$")
@@ -892,7 +974,7 @@ def main():
 
     s = sub.add_parser("split"); s.add_argument("file")
     s.add_argument("--size", type=int, default=100)
-    s.add_argument("--out", help="mặc định workspace/work/<tên file>/")
+    s.add_argument("--out", required=True, help="thư mục ngoài workspace/")
     s.set_defaults(fn=cmd_split)
 
     s = sub.add_parser("merge"); s.add_argument("src"); s.add_argument("textfile"); s.add_argument("out")

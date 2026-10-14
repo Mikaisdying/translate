@@ -226,9 +226,46 @@ class ToolTest(unittest.TestCase):
 
     def test_split(self):
         self.write("workspace/cleaned/a.srt", srt(*[f"câu {i}" for i in range(1, 8)]))
-        code, _ = self.run_tool("split", "workspace/cleaned/a.srt", "--size", "3")
+        code, _ = self.run_tool("split", "workspace/cleaned/a.srt", "--size", "3", "--out", "parts")
         self.assertEqual(code, 0)
-        self.assertEqual(len(list((self.dir / "workspace/work/a").glob("part_*.srt"))), 3)
+        self.assertEqual(len(list((self.dir / "parts").glob("part_*.srt"))), 3)
+
+    def test_split_refuses_workspace(self):
+        self.write("workspace/raw/a.srt", srt("一", "二"))
+        code, out = self.run_tool("split", "workspace/raw/a.srt", "--out", "workspace/work/005")
+        self.assertEqual(code, 1)
+        self.assertIn("Clean và dịch không dùng split", out)
+        self.assertFalse((self.dir / "workspace/work/005").exists())
+
+    def test_parts_and_merge_refuse_wrong_work_paths(self):
+        self.write("workspace/raw/ep 01.srt", srt("句1", "句2"))
+        self.write("workspace/cleaned/ep 01.srt", srt("句1", "句2"))
+        for src, d in (("workspace/raw/ep 01.srt", "workspace/work/005"),
+                       ("workspace/raw/ep 01.srt", "workspace/work/ep01/cleaned"),
+                       ("workspace/raw/ep 01.srt", "workspace/work/ep 01/vi"),
+                       ("workspace/cleaned/ep 01.srt", "workspace/work/ep 01/cleaned"),
+                       ("workspace/cleaned/ep 01.srt", "tmp/vi")):
+            code, out = self.run_tool("parts", src, d)
+            self.assertEqual(code, 1, (src, d))
+            self.assertIn("sai chỗ", out)
+        self.write("workspace/work/ep 01/clean.txt", "1 | =\n2 | =\n")
+        code, out = self.run_tool("merge", "workspace/raw/ep 01.srt", "workspace/work/ep 01/clean.txt",
+                                  "workspace/cleaned/ep 01.srt")
+        self.assertEqual(code, 1)
+        self.assertIn('phải là workspace/work/ep 01/cleaned.txt', out)
+        self.write("workspace/work/ep 01/cleaned.txt", "1 | =\n2 | =\n")
+        code, out = self.run_tool("merge", "workspace/raw/ep 01.srt", "workspace/work/ep 01/cleaned.txt",
+                                  "workspace/raw/ep 01.srt")
+        self.assertEqual(code, 1)
+        self.assertIn("phải là workspace/cleaned/ep 01.srt", out)
+        code, out = self.run_tool("merge", "workspace/raw/ep 01.srt", "workspace/work/ep 01/cleaned.txt",
+                                  "workspace/cleaned/ep 01.srt")
+        self.assertEqual(code, 0, out)
+        self.write("workspace/work/ep 01/vi.txt", "1 | một\n2 | hai\n")
+        code, out = self.run_tool("merge", "workspace/cleaned/ep 01.srt", "workspace/work/ep 01/vi.txt",
+                                  "workspace/trans/ep 01.en.srt")
+        self.assertEqual(code, 1)
+        self.assertIn("phải là workspace/trans/ep 01.vi.srt", out)
 
     # ---- merge ----
 
@@ -297,7 +334,19 @@ class ToolTest(unittest.TestCase):
         self.write(f"{d}/part_003.txt", "7 | bảy\n")
         code, out = self.run_tool("parts", src, d, "--size", "3")
         self.assertEqual(code, 0, out)
-        self.assertIn("Ghép: python tools/srt_tools.py merge", out)
+        self.assertIn("Ghép: python tools/srt_tools.py merge workspace/cleaned/a.srt workspace/work/a/vi "
+                      "workspace/trans/a.vi.srt --cleanup", out)
+
+    def test_parts_quotes_paths_with_spaces(self):
+        self.write("workspace/raw/ep 01.srt", srt("句1", "句2"))
+        src, d = "workspace/raw/ep 01.srt", "workspace/work/ep 01/cleaned"
+        code, out = self.run_tool("parts", src, d)
+        self.assertIn('text "workspace/raw/ep 01.srt" --from 1 --to 2', out)
+        self.assertIn('Ghi kết quả vào: "workspace/work/ep 01/cleaned/part_001.txt"', out)
+        self.write(f"{d}/part_001.txt", "1 | =\n2 | =\n")
+        code, out = self.run_tool("parts", src, d)
+        self.assertIn('merge "workspace/raw/ep 01.srt" "workspace/work/ep 01/cleaned" '
+                      '"workspace/cleaned/ep 01.srt" --cleanup', out)
 
     # ---- archive ----
 

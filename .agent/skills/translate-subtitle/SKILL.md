@@ -5,106 +5,68 @@ description: Use when translating cleaned subtitles into Vietnamese (vi) or Engl
 
 # Translate Subtitle
 
-Goal: a translation that reads naturally as if written by a native speaker, accurate, with consistent names and address forms throughout, matching the source block for block.
-
-Talk to the user in Vietnamese.
+Goal: a translation that reads as if written by a native speaker, accurate, with consistent names and address forms, matching the source block for block. Talk to the user in Vietnamese.
 
 ## Target language
 
-From the command or the user's words:
+`vi` / `/trans-vi` / "tiếng Việt" / "vietsub" → **vi**; `en` / `/trans-en` / "tiếng Anh" / "engsub" → **en**. Unclear → ask once. Then read `references/target-<code>.md` (new language: add one modeled on these).
 
-- `vi`, `/trans-vi`, "tiếng Việt", "vietsub" → **vi**
-- `en`, `/trans-en`, "tiếng Anh", "English", "engsub" → **en**
+## Files
 
-If unclear, ask one question first. Then read the language guide:
-
-- vi → `references/target-vi.md`
-- en → `references/target-en.md`
-
-(New language: add `references/target-<code>.md` modeled on those two.)
-
-## Folders
-
-- Read `workspace/cleaned/`. Write `workspace/trans/<name>.<code>.srt`: `workspace/cleaned/ep01.srt` → `workspace/trans/ep01.vi.srt`.
-- Never modify `workspace/cleaned/` or touch `workspace/raw/`.
-- File only in `workspace/raw/`, not in `workspace/cleaned/`: tell the user and suggest cleaning first. Translate from `workspace/raw/` only with explicit consent.
-- Temp files in `workspace/work/<file>/`.
-- Run from the project root: `python tools/srt_tools.py ...` (or `python3`).
+- `<file>` below = the episode name without `.srt` (e.g. `001.第一节课 人体体块讲解`); `<code>` = `vi` or `en`.
+- Read `workspace/cleaned/<file>.srt` (never modify; never touch `workspace/raw/`). Write `workspace/trans/<file>.<code>.srt`. Temp files in `workspace/work/<file>/`.
+- File only in `workspace/raw/`: suggest cleaning first; translate from raw only with explicit consent.
+- Run every command from the project root exactly as written, with paths in double quotes (names contain spaces). `python3` if `python` is missing.
+- Never open an `.srt` directly; read with `text` (half the tokens: no IDs/timestamps).
 
 ## Choosing files
 
-- Translate the files the user names.
-- None named: every `workspace/cleaned/*.srt` without a `.<code>.srt` in `workspace/trans/`. Skip existing ones unless asked to retranslate.
-- `python tools/srt_tools.py status` gives an overview: what's translated, validate PASS or not.
-- **Session budget**: every turn resends the whole context, so a long session costs more and translation quality drops at the end. At most one file per session, and in a long file stop after about 500 blocks (5 parts) translated in this session, at a part boundary. Then tell the user what's done and ask them to start a new session (`/clear`) and say "dịch tiếp"; the next session resumes via `parts` (see Progress). A file with ≤ 150 blocks may be followed by another in the same session.
-
-## Retranslating
-
-When retranslating a file that already has a translation (e.g. switching model), archive the old one first:
-
-```
-python tools/srt_tools.py archive workspace/trans/<file>.<code>.srt workspace/work/<file>/<code>
-```
-
-This moves the old translation and old parts into `workspace/work/<file>/backup/` with a timestamp. Reuse no part of the previous run: if old parts remain in `workspace/work/<file>/<code>/`, `merge` will mix two translations and `validate` still PASSes because IDs and timestamps match. Keep `notes.<code>.md` (decisions that must stay consistent) but read it critically. Read the old version in `backup/` only if the user asks.
-
-Resuming the same run in a new session: don't archive; continue from parts missing in `workspace/work/<file>/<code>/`.
+- The files the user names; otherwise run `python tools/srt_tools.py status` and take the first episode whose cleaned is PASS and `<code>` column is `—`.
+- **Session budget** (every turn resends the whole context; quality drops late in long sessions): one file per session (files ≤ 150 blocks may be followed by another), and at most 5 parts (~500 blocks) per session. Then stop after saving a part, report progress, and ask the user to `/clear` and say "dịch tiếp".
+- **Retranslating** (e.g. another model): first `python tools/srt_tools.py archive "workspace/trans/<file>.<code>.srt" "workspace/work/<file>/<code>"` (moves both to `backup/`); leftover parts would otherwise be merged into the new run and still PASS. Keep `notes.<code>.md` but read it critically. Resuming the same run ("dịch tiếp"): don't archive.
 
 ## Per-file procedure
 
-1. **Check**: `python tools/srt_tools.py info workspace/cleaned/<file>.srt`. Format error → stop and report.
-2. **Read glossary**: `python tools/srt_tools.py glossary --section 1-4` prints sections 1-4 compactly (section 5, ASR errors, is only for cleaning); don't read `workspace/glossary.md` itself. `x` rows are mandatory and override your choices. `?` rows are suggestions. Empty cells: decide yourself, consistently.
-3. **Understand the content first**: you need to know who's who, relationships and tone, since address and naming early on depend on what happens later. But never read the whole file twice (one skim, one pass while translating).
-   - `workspace/work/<file>/summary.md` exists (usually made at clean): read it, not the whole file.
-   - Missing, ≤ 150 blocks: skip this step, read directly in step 5.
-   - Missing, longer: delegate to a subagent per `.agent/skills/clean-funasr/references/summarize.md` with `File: workspace/cleaned/<file>.srt`, save the reply to `summary.md` and read it. No subagent tool: skim once with `text` and write `summary.md` yourself.
-4. **Decision log**: create `workspace/work/<file>/notes.<code>.md` (one per language, since Vietnamese address or English name spelling don't carry over), recording decisions not in the glossary (how names are rendered, who addresses whom how, term choices). Add to it as soon as a new decision is made. Within a session it's still in context, no need to reread; in a new session read it first.
-5. **Translate**: never rewrite IDs or timestamps yourself. Read the source with `text`, write the translation to a text file, one block per line as `ID | translation` (two-line blocks joined with ` / `), then let `merge` put it onto the source IDs and timestamps. `merge` rejects missing, extra or duplicate IDs and empty blocks.
-   - ≤ 150 blocks: `python tools/srt_tools.py text workspace/cleaned/<file>.srt`, write `workspace/work/<file>/<code>.txt`, then `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<code>.txt workspace/trans/<file>.<code>.srt`.
-   - Longer: translate in 100-block parts. Part 1 = blocks 1-100: `python tools/srt_tools.py text workspace/cleaned/<file>.srt --from 1 --to 100`, write `workspace/work/<file>/<code>/part_001.txt`; part 2 = 101-200 → `part_002.txt`, and so on. Never read the `.srt` directly (twice the tokens due to IDs/timestamps); no need for `split`.
-     **Save to disk immediately (one part per turn)**: fetch exactly 1 part with `text --from ... --to ...`. Immediately after translating, call your file-writing tool to save `part_XXX.txt` to disk before fetching the next part. Never translate across multiple parts or hold unsaved output in context: batching triggers timeouts and loses data.
-   - Progress: `python tools/srt_tools.py parts workspace/cleaned/<file>.srt workspace/work/<file>/<code>` shows done, partial (missing, extra, duplicate IDs, empty blocks) and pending parts, and prints the `text` command for the next part. No checklist file needed: the tool checks the part files directly, so it never drifts. If interrupted (connection lost, session ended, session budget reached): run it, read the glossary as in step 2, `summary.md` if present and `notes.<code>.md`, reread the last ~10 blocks of the previous part, both source and translation (`pair` doesn't work before merging; read the source with `text` and the end of the previous part file), then continue. Translating in one go, the previous part is still in context; don't reread.
-   - When `parts` reports all done, do not ask the model to concatenate the parts or construct an SRT. Let Python merge and clean up: `python tools/srt_tools.py merge workspace/cleaned/<file>.srt workspace/work/<file>/<code> workspace/trans/<file>.<code>.srt --cleanup`. The command preserves the source IDs and timestamps, writes the final SRT, and deletes the part files only after a successful merge so the final translation is the only copy; from then on every edit (including review fixes) goes directly into that file.
-6. **Validate**: `python tools/srt_tools.py validate workspace/cleaned/<file>.srt workspace/trans/<file>.<code>.srt --target <code>`. Must PASS. Fix every "còn sót chữ gốc" or "có Markdown" warning; for "block giống hệt bản gốc" check with `diff` (names, sounds, numbers may legitimately be identical).
-7. **Glossary**: `python tools/srt_tools.py check-glossary workspace/cleaned/<file>.srt workspace/trans/<file>.<code>.srt --target <code>`. Fix every `x` violation, except false positives (term phrased differently but matching the glossary's intent): list those in the report. Rerun `validate` afterwards.
-8. **Self-check**: `python tools/srt_tools.py lint workspace/cleaned/<file>.srt workspace/trans/<file>.<code>.srt --target <code>`, then `pair --ids` only the flagged blocks and fix real errors (false positives: list in the report). Don't reread the whole translation: content checks (address slips, inconsistent names, awkward sentences) are `review-subtitle`'s job, side by side with the source; suggest it in the report.
+1. **Format**: `python tools/srt_tools.py info "workspace/cleaned/<file>.srt"`. Error → stop and report. Note `Blocks:` (the block count used below).
+2. **Glossary**: `python tools/srt_tools.py glossary --section 1-4` (don't open `workspace/glossary.md`). `x` rows are mandatory and override your choices; `?` rows are suggestions; empty cells: decide yourself, consistently.
+3. **Context** (who's who, relationships, tone; early address depends on later events). Never read the file twice:
+   - `workspace/work/<file>/summary.md` exists (usually from clean): read it.
+   - Missing, ≤ 150 blocks: skip; you read it in step 5.
+   - Missing, longer: give a subagent only `Read and follow .agent/skills/clean-funasr/references/summarize.md` and `File: workspace/cleaned/<file>.srt`; save its reply verbatim to `workspace/work/<file>/summary.md`. No subagent tool: skim once with `text` and write it yourself.
+4. **Decision log** `workspace/work/<file>/notes.<code>.md`: decisions not in the glossary (name rendering, who addresses whom how, non-obvious terms). One line each, `<gốc> → <bản dịch đã chọn>` (+ `từ ID N` if it changes), exactly one chosen form, never `A / B`. No ordinary words, no restating glossary rows, no pinyin. Append each decision when made. In a new session read it first.
+5. **Translate**. You never write IDs, timestamps or SRT; you write a text file with exactly one line per source block, `ID | translation` (a two-line block joined with ` / `), and `merge` builds the SRT.
+   - ≤ 150 blocks: `python tools/srt_tools.py text "workspace/cleaned/<file>.srt"` → write `workspace/work/<file>/<code>.txt` → `python tools/srt_tools.py merge "workspace/cleaned/<file>.srt" "workspace/work/<file>/<code>.txt" "workspace/trans/<file>.<code>.srt"`.
+   - Longer: work in 100-block parts, repeating this loop:
+     1. `python tools/srt_tools.py parts "workspace/cleaned/<file>.srt" "workspace/work/<file>/<code>"`. It prints the next `text` command and the part file to write.
+     2. Run that `text` command, translate, and save the part file immediately (one part per turn; never hold unsaved output).
+     3. Back to 1. A part marked `LỖI` must be rewritten; `THỪA` → archive it.
+     When `parts` prints `Ghép: ...`, run that `merge` command (it deletes the parts only on success). Later edits, including review fixes, go directly into the `.srt`.
+   - New session ("dịch tiếp"): before the loop, read glossary (step 2), `summary.md`, `notes.<code>.md`, and the last ~10 blocks of the last finished part (source via `text --from --to`, translation from its part file).
+6. **Machine checks, one command**: `python tools/srt_tools.py review-prep "workspace/cleaned/<file>.srt" "workspace/trans/<file>.<code>.srt" --target <code>` (ignore its `## Đọc đối chiếu`).
+   - `## Validate` must PASS. Fix "còn sót chữ gốc" and "có Markdown"; "block giống hệt bản gốc" may be legitimate (names, sounds, numbers).
+   - `## Glossary`: fix every `x` violation; list false positives in the report.
+   - `## Lint`: one `pair "<source>" "<translation>" --ids 12,57,80` call for all flagged blocks; fix real errors, list false positives.
+   - To fix a block, edit only its text line(s) in the `.srt`. Then rerun `python tools/srt_tools.py validate "workspace/cleaned/<file>.srt" "workspace/trans/<file>.<code>.srt" --target <code>` until PASS.
+   Don't reread the whole translation; content review is `review-subtitle`'s job (suggest it).
 
-## General rules
+## Translation rules
 
-**Keep structure**: replace only text. IDs, timestamps, order and block count stay exactly the same.
+- **Sentences spanning blocks**: translate the whole sentence, then split it back so each block matches what is spoken in its time range. Never translate fragments in isolation. E.g. zh → vi:
 
-```
-123
-00:10:20,000 --> 00:10:23,000
-Chữ gốc
-```
-→
-```
-123
-00:10:20,000 --> 00:10:23,000
-Chữ đã dịch
-```
+  ```
+  45  如果你明天还是不来的话  →  Nếu mai cậu vẫn không đến
+  46  我就自己一个人去了      →  thì tớ sẽ tự đi một mình đấy.
+  ```
 
-**Sentences spanning blocks**: understand and translate the whole sentence, then split it back across those blocks so each matches what is spoken in its time range and reads fairly independently. Don't translate fragments in isolation; word order differs between languages and the result becomes nonsense. Example (zh → vi):
-
-```
-45  如果你明天还是不来的话          →  Nếu mai cậu vẫn không đến
-46  我就自己一个人去了              →  thì tớ sẽ tự đi một mình đấy.
-```
-
-**Length**: subtitles must be readable in time. Max 2 lines per block, prefer concise phrasing. Trim filler words, never meaning.
-
-**Faithfulness**: no added information, no dropped meaning, no notes or explanations in the subtitle, no "Dịch bởi..." lines. Sounds and laughter may be kept or rendered naturally in the target language.
-
-**Technical terms**: software, menus, tools, shortcuts follow the "Technical terms, software, shortcuts" section of the target language reference.
-
-**Unsure of meaning**: choose the most plausible reading in context, translate normally, list the ID in the report. Never leave source text or [?] in the file.
+- **Length**: max 2 lines per block, concise; trim fillers, never meaning.
+- **Faithful**: nothing added or dropped; no notes, glosses or "Dịch bởi..." lines. Sounds and laughter may be kept or rendered naturally.
+- **Technical terms, software, shortcuts**: per the target-language reference.
+- **Unsure of meaning**: translate the most plausible reading, list the ID in the report. Never leave source text or [?].
 
 ## Report
 
 Brief, in chat:
 
 - File, language, block count, validate result.
-- Key decisions you made (from `notes.<code>.md`): names, address, terms.
-- Uncertain spots (with IDs).
-- Propose moving decisions from `notes.<code>.md` into `workspace/glossary.md` with status `?` for reuse. Write only if the user agrees.
+- Key decisions (names, address, terms) and uncertain spots (IDs).
+- Propose moving decisions from `notes.<code>.md` into `workspace/glossary.md` as `?`, only those another model would likely get wrong or inconsistent (loanwords kept, jargon, names, address); write only if the user agrees.
